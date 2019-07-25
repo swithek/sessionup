@@ -16,7 +16,7 @@ import (
 
 func TestCookieName(t *testing.T) {
 	m := Manager{}
-	val := "sessionup"
+	val := defaultName
 	CookieName(val)(&m)
 	if m.cookie.name != val {
 		t.Error("cookie name is invalid")
@@ -61,19 +61,19 @@ func TestHttpOnly(t *testing.T) {
 
 func TestSameSite(t *testing.T) {
 	m := Manager{}
-	val := http.SameSiteLaxMode
+	val := http.SameSiteStrictMode
 	SameSite(val)(&m)
 	if m.cookie.sameSite != val {
 		t.Error("sameSite is invalid")
 	}
 }
 
-func TestExpires(t *testing.T) {
+func TestExpiresIn(t *testing.T) {
 	m := Manager{}
 	val := time.Hour
-	Expires(val)(&m)
-	if m.expires != val {
-		t.Error("expires is invalid")
+	ExpiresIn(val)(&m)
+	if m.expiresIn != val {
+		t.Error("expiresIn is invalid")
 	}
 }
 
@@ -92,6 +92,15 @@ func TestWithAgent(t *testing.T) {
 	WithAgent(val)(&m)
 	if m.withAgent != val {
 		t.Error("withAgent is invalid")
+	}
+}
+
+func TestGenID(t *testing.T) {
+	m := Manager{}
+	val := func() string { return "" }
+	GenID(val)(&m)
+	if m.genID == nil {
+		t.Error("genID is invalid")
 	}
 }
 
@@ -114,27 +123,41 @@ func TestNewManager(t *testing.T) {
 	}
 
 	if m.withIP || m.withAgent {
-		t.Error("invalid config options")
+		t.Error("configuration options are invalid")
 	}
 }
 
 func TestDefaults(t *testing.T) {
+	cm := Manager{}
+	cm.cookie.name = defaultName
+	cm.cookie.path = "/"
+	cm.cookie.secure = true
+	cm.cookie.httpOnly = true
+	cm.cookie.sameSite = http.SameSiteStrictMode
+	cm.withIP = true
+	cm.withAgent = true
+
 	m := Manager{}
 	m.Defaults()
-	if m.cookie.name != "sessionup" || m.cookie.path != "/" || !m.cookie.secure ||
-		!m.cookie.httpOnly || m.cookie.sameSite != http.SameSiteLaxMode || !m.withIP ||
-		!m.withAgent || m.reject == nil {
+	if m.genID == nil || m.reject == nil {
+		t.Error("default values are invalid")
+	}
+
+	m.genID = nil
+	m.reject = nil
+	if !reflect.DeepEqual(cm, m) {
 		t.Error("default values are invalid")
 	}
 }
 
-func TestRejectHandler(t *testing.T) {
+func TestRejector(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "http://example.com", nil)
 	res, _ := json.Marshal(struct {
 		Error string `json:"error"`
 	}{Error: "major problem"})
-	rejectHandler(errors.New("major problem")).ServeHTTP(rec, req)
+
+	rejector(errors.New("major problem")).ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Error("status code is invalid")
 	}
@@ -148,10 +171,15 @@ func TestRejectHandler(t *testing.T) {
 	}
 }
 
-func TestClone(t *testing.T) {
-	m := Manager{
-		withIP: true,
+func TestIDGenerator(t *testing.T) {
+	id := idGenerator()
+	if len(id) != uniuri.UUIDLen {
+		t.Error("id is invalid")
 	}
+}
+
+func TestClone(t *testing.T) {
+	m := Manager{withIP: true}
 
 	cm := m.Clone(WithAgent(true))
 	if !cm.withIP {
@@ -178,8 +206,7 @@ func TestInit(t *testing.T) {
 
 	hasCookie := func(c bool) check {
 		return func(t *testing.T, _ *StoreMock, rec *httptest.ResponseRecorder, _ error) {
-			resp := rec.Result()
-			cookies := resp.Cookies()
+			cookies := rec.Result().Cookies()
 			if c && len(cookies) == 0 || !c && len(cookies) > 0 {
 				t.Fatal("response cookies count is invalid")
 			}
@@ -215,7 +242,7 @@ func TestInit(t *testing.T) {
 		}
 	}
 
-	key := "userID"
+	key := "key"
 
 	cc := map[string]struct {
 		Store  *StoreMock
@@ -273,29 +300,28 @@ func TestAuth(t *testing.T) {
 		}
 	}
 
-	wasFetchByTokenCalled := func(count int, tok string) check {
+	wasFetchByIDCalled := func(count int, id string) check {
 		return func(t *testing.T, s *StoreMock, _ *httptest.ResponseRecorder) {
-			ff := s.FetchByTokenCalls()
+			ff := s.FetchByIDCalls()
 			if len(ff) != count {
-				t.Error("FetchByToken calls count is invalid")
+				t.Error("FetchByID calls count is invalid")
 			}
 
-			if len(ff) > 0 && ff[0].Tok != tok {
-				t.Error("FetchByToken token argument is invalid")
+			if len(ff) > 0 && ff[0].ID != id {
+				t.Error("FetchByID id argument is invalid")
 			}
 		}
 	}
 
-	storeStub := func(err error) *StoreMock {
+	storeStub := func(bRes bool, err error) *StoreMock {
 		return &StoreMock{
-			FetchByTokenFunc: func(_ context.Context, _ string) (Session, error) {
-				return Session{}, err
+			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
+				return Session{}, bRes, err
 			},
 		}
 	}
 
-	name := "sessionup"
-	val := uniuri.NewLen(uniuri.UUIDLen)
+	id := "id"
 
 	cc := map[string]struct {
 		Store  *StoreMock
@@ -303,49 +329,58 @@ func TestAuth(t *testing.T) {
 		Checks []check
 	}{
 		"Invalid cookie": {
-			Store: storeStub(nil),
+			Store: storeStub(true, nil),
 			Cookie: &http.Cookie{
 				Name:  "incorrect",
-				Value: val,
+				Value: id,
 			},
 			Checks: checks(
 				hasResp(http.StatusUnauthorized, true),
-				wasFetchByTokenCalled(0, ""),
+				wasFetchByIDCalled(0, ""),
 			),
 		},
-		"Invalid cookie value": {
-			Store: storeStub(nil),
+		"Error returned by store.FetchByID": {
+			Store: storeStub(false, errors.New("error")),
 			Cookie: &http.Cookie{
-				Name:  name,
-				Value: "token",
+				Name:  defaultName,
+				Value: id,
 			},
 			Checks: checks(
 				hasResp(http.StatusUnauthorized, true),
-				wasFetchByTokenCalled(0, ""),
+				wasFetchByIDCalled(1, id),
 			),
 		},
-		"Error returned by store.FetchByToken": {
-			Store: storeStub(errors.New("error")),
+		"Session not found": {
+			Store: storeStub(false, nil),
 			Cookie: &http.Cookie{
-				Name:  name,
-				Value: val,
+				Name:  defaultName,
+				Value: id,
 			},
 			Checks: checks(
 				hasResp(http.StatusUnauthorized, true),
-				wasFetchByTokenCalled(1, val),
+				wasFetchByIDCalled(1, id),
 			),
 		},
 		"Successful auth": {
-			Store: storeStub(nil),
+			Store: storeStub(true, nil),
 			Cookie: &http.Cookie{
-				Name:  name,
-				Value: val,
+				Name:  defaultName,
+				Value: id,
 			},
 			Checks: checks(
 				hasResp(http.StatusOK, false),
-				wasFetchByTokenCalled(1, val),
+				wasFetchByIDCalled(1, id),
 			),
 		},
+	}
+
+	next := func(t *testing.T) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, ok := FromContext(r.Context())
+			if !ok {
+				t.Error("invalid session retrieved from the context")
+			}
+		})
 	}
 
 	for cn, c := range cc {
@@ -355,23 +390,14 @@ func TestAuth(t *testing.T) {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest("GET", "http://example.com", nil)
 			req.AddCookie(c.Cookie)
-			m := Manager{store: c.Store, reject: rejectHandler}
-			m.cookie.name = name
+			m := Manager{store: c.Store}
+			m.Defaults()
 			m.Auth(next(t)).ServeHTTP(rec, req)
 			for _, ch := range c.Checks {
 				ch(t, c.Store, rec)
 			}
 		})
 	}
-}
-
-func next(t *testing.T) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, ok := FromContext(r.Context())
-		if !ok {
-			t.Error("session in context is invalid")
-		}
-	})
 }
 
 func TestRevoke(t *testing.T) {
@@ -389,8 +415,7 @@ func TestRevoke(t *testing.T) {
 
 	hasCookie := func(c bool) check {
 		return func(t *testing.T, _ *StoreMock, rec *httptest.ResponseRecorder, _ error) {
-			resp := rec.Result()
-			cookies := resp.Cookies()
+			cookies := rec.Result().Cookies()
 			if c && len(cookies) == 0 || !c && len(cookies) > 0 {
 				t.Fatal("response cookies count is invalid")
 			}
@@ -399,34 +424,34 @@ func TestRevoke(t *testing.T) {
 				return
 			}
 
-			if cookies[0].Value != "" {
+			if cookies[0].Value != "" || !cookies[0].Expires.Before(time.Now()) {
 				t.Error("response cookie is invalid")
 			}
 		}
 	}
 
-	wasDeleteByTokenCalled := func(count int, tok string) check {
+	wasDeleteByIDCalled := func(count int, id string) check {
 		return func(t *testing.T, s *StoreMock, _ *httptest.ResponseRecorder, _ error) {
-			ff := s.DeleteByTokenCalls()
+			ff := s.DeleteByIDCalls()
 			if len(ff) != count {
-				t.Error("DeleteByToken calls count is invalid")
+				t.Error("DeleteByID calls count is invalid")
 			}
 
-			if len(ff) > 0 && ff[0].Tok != tok {
-				t.Error("DeleteByToken token argument is invalid")
+			if len(ff) > 0 && ff[0].ID != id {
+				t.Error("DeleteByID id argument is invalid")
 			}
 		}
 	}
 
 	storeStub := func(err error) *StoreMock {
 		return &StoreMock{
-			DeleteByTokenFunc: func(_ context.Context, _ string) error {
+			DeleteByIDFunc: func(_ context.Context, _ string) error {
 				return err
 			},
 		}
 	}
 
-	s := Session{Token: "token"}
+	s := Session{ID: "id"}
 
 	cc := map[string]struct {
 		Store  *StoreMock
@@ -439,16 +464,16 @@ func TestRevoke(t *testing.T) {
 			Checks: checks(
 				hasErr(false),
 				hasCookie(false),
-				wasDeleteByTokenCalled(0, ""),
+				wasDeleteByIDCalled(0, ""),
 			),
 		},
-		"Error returned by store.DeleteByToken": {
+		"Error returned by store.DeleteByID": {
 			Store: storeStub(errors.New("error")),
 			Ctx:   newContext(context.Background(), s),
 			Checks: checks(
 				hasErr(true),
 				hasCookie(false),
-				wasDeleteByTokenCalled(1, s.Token),
+				wasDeleteByIDCalled(1, s.ID),
 			),
 		},
 		"Successful revoke": {
@@ -457,7 +482,7 @@ func TestRevoke(t *testing.T) {
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
-				wasDeleteByTokenCalled(1, s.Token),
+				wasDeleteByIDCalled(1, s.ID),
 			),
 		},
 	}
@@ -490,7 +515,7 @@ func TestRevokeOther(t *testing.T) {
 		}
 	}
 
-	wasDeleteByUserKeyCalled := func(count int, key, expTok string) check {
+	wasDeleteByUserKeyCalled := func(count int, key, expID string) check {
 		return func(t *testing.T, s *StoreMock, _ error) {
 			ff := s.DeleteByUserKeyCalls()
 			if len(ff) != count {
@@ -505,8 +530,8 @@ func TestRevokeOther(t *testing.T) {
 				t.Error("DeleteByUserKey key argument is invalid")
 			}
 
-			if len(ff[0].ExpTok) == 0 || ff[0].ExpTok[0] != expTok {
-				t.Error("DeleteByUserKey expTok argument is invalid")
+			if len(ff[0].ExpID) == 0 || ff[0].ExpID[0] != expID {
+				t.Error("DeleteByUserKey expID argument is invalid")
 			}
 		}
 	}
@@ -519,7 +544,7 @@ func TestRevokeOther(t *testing.T) {
 		}
 	}
 
-	s := Session{Token: "token", UserKey: "key"}
+	s := Session{ID: "id", UserKey: "key"}
 
 	cc := map[string]struct {
 		Store  *StoreMock
@@ -531,7 +556,7 @@ func TestRevokeOther(t *testing.T) {
 			Ctx:   newContext(context.Background(), s),
 			Checks: checks(
 				hasErr(true),
-				wasDeleteByUserKeyCalled(1, s.UserKey, s.Token),
+				wasDeleteByUserKeyCalled(1, s.UserKey, s.ID),
 			),
 		},
 		"Successful revoke": {
@@ -539,7 +564,7 @@ func TestRevokeOther(t *testing.T) {
 			Ctx:   newContext(context.Background(), s),
 			Checks: checks(
 				hasErr(false),
-				wasDeleteByUserKeyCalled(1, s.UserKey, s.Token),
+				wasDeleteByUserKeyCalled(1, s.UserKey, s.ID),
 			),
 		},
 	}
@@ -573,8 +598,7 @@ func TestRevokeAll(t *testing.T) {
 
 	hasCookie := func(c bool) check {
 		return func(t *testing.T, _ *StoreMock, rec *httptest.ResponseRecorder, _ error) {
-			resp := rec.Result()
-			cookies := resp.Cookies()
+			cookies := rec.Result().Cookies()
 			if c && len(cookies) == 0 || !c && len(cookies) > 0 {
 				t.Fatal("response cookies count is invalid")
 			}
@@ -583,7 +607,7 @@ func TestRevokeAll(t *testing.T) {
 				return
 			}
 
-			if cookies[0].Value != "" {
+			if cookies[0].Value != "" || !cookies[0].Expires.Before(time.Now()) {
 				t.Error("response cookie is invalid")
 			}
 		}
@@ -674,11 +698,12 @@ func TestFetchAll(t *testing.T) {
 				copy(exp1, exp)
 			}
 
-			if c {
-				s := exp1[0]
+			if exp != nil && c {
+				s := exp1[1]
 				s.Current = true
-				exp1[0] = s
+				exp1[1] = s
 			}
+
 			if !reflect.DeepEqual(exp1, ss) {
 				t.Error("sessions slice is invalid")
 			}
@@ -713,7 +738,7 @@ func TestFetchAll(t *testing.T) {
 	var ss []Session
 	for i := 0; i < 3; i++ {
 		ss = append(ss, Session{
-			Token: fmt.Sprintf("token%d", i),
+			ID: fmt.Sprintf("id%d", i),
 		})
 	}
 
@@ -726,14 +751,23 @@ func TestFetchAll(t *testing.T) {
 	}{
 		"Error returned by store.FetchByUserKey": {
 			Store: storeStub(nil, errors.New("error")),
-			Ctx:   newContext(context.Background(), ss[0]),
+			Ctx:   newContext(context.Background(), ss[1]),
 			Checks: checks(
 				hasErr(true),
 				hasSessions(nil, false),
 				wasFetchByUserKeyCalled(1, key),
 			),
 		},
-		"Successful fetch without current one": {
+		"No sessions found": {
+			Store: storeStub(nil, nil),
+			Ctx:   newContext(context.Background(), ss[1]),
+			Checks: checks(
+				hasErr(false),
+				hasSessions(nil, false),
+				wasFetchByUserKeyCalled(1, key),
+			),
+		},
+		"Successful fetch without current session": {
 			Store: storeStub(ss, nil),
 			Ctx:   context.Background(),
 			Checks: checks(
@@ -744,7 +778,7 @@ func TestFetchAll(t *testing.T) {
 		},
 		"Successful fetch": {
 			Store: storeStub(ss, nil),
-			Ctx:   newContext(context.Background(), ss[0]),
+			Ctx:   newContext(context.Background(), ss[1]),
 			Checks: checks(
 				hasErr(false),
 				hasSessions(ss, true),
@@ -768,14 +802,14 @@ func TestFetchAll(t *testing.T) {
 
 func TestCreateCookie(t *testing.T) {
 	exp := http.Cookie{
-		Name:     "sessionup",
-		Value:    "token",
+		Name:     defaultName,
+		Value:    "id",
 		Path:     "/",
 		Domain:   "domain",
 		Expires:  time.Now(),
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	}
 
 	m := Manager{}
@@ -797,12 +831,12 @@ func TestCreateCookie(t *testing.T) {
 
 func TestDeleteCookie(t *testing.T) {
 	exp := http.Cookie{
-		Name:     "sessionup",
+		Name:     defaultName,
 		Path:     "/",
 		Domain:   "domain",
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	}
 
 	m := Manager{}
@@ -822,7 +856,7 @@ func TestDeleteCookie(t *testing.T) {
 	}
 
 	exp.Expires = cookies[0].Expires
-	if exp.String() != cookies[0].String() && cookies[0].Expires.Before(time.Now()) {
+	if exp.String() != cookies[0].String() && !cookies[0].Expires.Before(time.Now()) {
 		t.Error("cookie data is invalid")
 	}
 }

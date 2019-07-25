@@ -5,7 +5,6 @@ import "context"
 // Store provides an easy access to the underlying data store, without
 // exposing any of its internal logic and implementing the mandatory
 // methods accordingly.
-//go:generate moq -out ./store_test.go . Store
 type Store interface {
 	// Create should insert the new provided session into the store and ensure
 	// that it is deleted when expiration time due.

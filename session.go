@@ -46,7 +46,7 @@ type Session struct {
 // the provided request, user key and a freshly generated ID.
 func (m *Manager) newSession(r *http.Request, key string) Session {
 	s := Session{
-		Expires: time.Now().Add(m.expires),
+		Expires: prepExpires(m.expiresIn),
 		ID:      m.genID(),
 		UserKey: key,
 	}
@@ -64,6 +64,16 @@ func (m *Manager) newSession(r *http.Request, key string) Session {
 	}
 
 	return s
+}
+
+// prepExpires produces a correct value of expiration time
+// used by sessions.
+func prepExpires(d time.Duration) time.Time {
+	if d == 0 {
+		return time.Time{}
+	}
+
+	return time.Now().Add(d)
 }
 
 // readIP tries to extract the real IP of the client from the provided request.

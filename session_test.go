@@ -14,14 +14,17 @@ import (
 
 func TestNewSession(t *testing.T) {
 	m := Manager{
+		expiresIn: time.Hour,
 		withAgent: true,
 		withIP:    true,
+		genID:     idGenerator,
 	}
-	m.expires = time.Hour
 
 	req := httptest.NewRequest("GET", "http://example.com/", nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux i686; rv:38.0) Gecko/20100101 Firefox/38.0")
 	req.RemoteAddr = "127.0.0.1:3000"
+
+	key := "key"
 
 	cc := map[string]struct {
 		Manager Manager
@@ -71,13 +74,17 @@ func TestNewSession(t *testing.T) {
 		c := c
 		t.Run(cn, func(t *testing.T) {
 			t.Parallel()
-			s := c.Manager.newSession(c.Req, "key")
+			s := c.Manager.newSession(c.Req, key)
 			if !s.Expires.After(time.Now()) {
 				t.Error("new session has invalid expires field")
 			}
 
-			if !reflect.DeepEqual(c.IP, s.IP) {
-				t.Error("new session has invalid IP field")
+			if s.ID == "" {
+				t.Error("new session has invalid ID field")
+			}
+
+			if s.UserKey != key {
+				t.Error("new session has invalid user key field")
 			}
 
 			if c.OS != s.Agent.OS {
@@ -87,7 +94,17 @@ func TestNewSession(t *testing.T) {
 			if c.Browser != s.Agent.Browser {
 				t.Error("new session has invalid browser field")
 			}
+
+			if !reflect.DeepEqual(c.IP, s.IP) {
+				t.Error("new session has invalid IP field")
+			}
 		})
+	}
+}
+
+func TestPrepExpires(t *testing.T) {
+	if !prepExpires(0).IsZero() || !prepExpires(time.Hour).After(time.Now()) {
+		t.Error("produced expiration time is invalid")
 	}
 }
 
@@ -96,13 +113,13 @@ func TestReadIP(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://example.com/", nil)
 	req.Header.Set("X-Forwarded-For", "127.0.0.2, 127.0.0.1")
 	if !reflect.DeepEqual(ip, readIP(req)) {
-		t.Error("invalid ip from X-Forwarded-For header")
+		t.Error("invalid IP from X-Forwarded-For header")
 	}
 
 	req.Header.Del("X-Forwarded-For")
 	req.RemoteAddr = "127.0.0.1:3000"
 	if !reflect.DeepEqual(ip, readIP(req)) {
-		t.Error("invalid ip from request.RemoteAddr")
+		t.Error("invalid IP from request.RemoteAddr")
 	}
 }
 
@@ -112,7 +129,7 @@ func TestNewContext(t *testing.T) {
 
 	cs, ok := ctx.Value(sessionKey).(Session)
 	if !ok || !reflect.DeepEqual(s, cs) {
-		t.Error("invalid session from context")
+		t.Error("invalid session stored in the context")
 	}
 }
 
@@ -122,6 +139,6 @@ func TestFromContext(t *testing.T) {
 
 	cs, ok := FromContext(ctx)
 	if !ok || !reflect.DeepEqual(s, cs) {
-		t.Error("invalid session from context")
+		t.Error("invalid session retrieved from the context")
 	}
 }

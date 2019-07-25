@@ -10,9 +10,9 @@ import (
 
 var (
 	lockStoreMockCreate          sync.RWMutex
-	lockStoreMockDeleteByToken   sync.RWMutex
+	lockStoreMockDeleteByID      sync.RWMutex
 	lockStoreMockDeleteByUserKey sync.RWMutex
-	lockStoreMockFetchByToken    sync.RWMutex
+	lockStoreMockFetchByID       sync.RWMutex
 	lockStoreMockFetchByUserKey  sync.RWMutex
 )
 
@@ -29,14 +29,14 @@ var _ Store = &StoreMock{}
 //             CreateFunc: func(ctx context.Context, ses Session) error {
 // 	               panic("mock out the Create method")
 //             },
-//             DeleteByTokenFunc: func(ctx context.Context, tok string) error {
-// 	               panic("mock out the DeleteByToken method")
+//             DeleteByIDFunc: func(ctx context.Context, id string) error {
+// 	               panic("mock out the DeleteByID method")
 //             },
-//             DeleteByUserKeyFunc: func(ctx context.Context, key string, expTok ...string) error {
+//             DeleteByUserKeyFunc: func(ctx context.Context, key string, expID ...string) error {
 // 	               panic("mock out the DeleteByUserKey method")
 //             },
-//             FetchByTokenFunc: func(ctx context.Context, tok string) (Session, error) {
-// 	               panic("mock out the FetchByToken method")
+//             FetchByIDFunc: func(ctx context.Context, id string) (Session, bool, error) {
+// 	               panic("mock out the FetchByID method")
 //             },
 //             FetchByUserKeyFunc: func(ctx context.Context, key string) ([]Session, error) {
 // 	               panic("mock out the FetchByUserKey method")
@@ -51,14 +51,14 @@ type StoreMock struct {
 	// CreateFunc mocks the Create method.
 	CreateFunc func(ctx context.Context, ses Session) error
 
-	// DeleteByTokenFunc mocks the DeleteByToken method.
-	DeleteByTokenFunc func(ctx context.Context, tok string) error
+	// DeleteByIDFunc mocks the DeleteByID method.
+	DeleteByIDFunc func(ctx context.Context, id string) error
 
 	// DeleteByUserKeyFunc mocks the DeleteByUserKey method.
-	DeleteByUserKeyFunc func(ctx context.Context, key string, expTok ...string) error
+	DeleteByUserKeyFunc func(ctx context.Context, key string, expID ...string) error
 
-	// FetchByTokenFunc mocks the FetchByToken method.
-	FetchByTokenFunc func(ctx context.Context, tok string) (Session, error)
+	// FetchByIDFunc mocks the FetchByID method.
+	FetchByIDFunc func(ctx context.Context, id string) (Session, bool, error)
 
 	// FetchByUserKeyFunc mocks the FetchByUserKey method.
 	FetchByUserKeyFunc func(ctx context.Context, key string) ([]Session, error)
@@ -72,12 +72,12 @@ type StoreMock struct {
 			// Ses is the ses argument value.
 			Ses Session
 		}
-		// DeleteByToken holds details about calls to the DeleteByToken method.
-		DeleteByToken []struct {
+		// DeleteByID holds details about calls to the DeleteByID method.
+		DeleteByID []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// Tok is the tok argument value.
-			Tok string
+			// ID is the id argument value.
+			ID string
 		}
 		// DeleteByUserKey holds details about calls to the DeleteByUserKey method.
 		DeleteByUserKey []struct {
@@ -85,15 +85,15 @@ type StoreMock struct {
 			Ctx context.Context
 			// Key is the key argument value.
 			Key string
-			// ExpTok is the expTok argument value.
-			ExpTok []string
+			// ExpID is the expID argument value.
+			ExpID []string
 		}
-		// FetchByToken holds details about calls to the FetchByToken method.
-		FetchByToken []struct {
+		// FetchByID holds details about calls to the FetchByID method.
+		FetchByID []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// Tok is the tok argument value.
-			Tok string
+			// ID is the id argument value.
+			ID string
 		}
 		// FetchByUserKey holds details about calls to the FetchByUserKey method.
 		FetchByUserKey []struct {
@@ -140,73 +140,73 @@ func (mock *StoreMock) CreateCalls() []struct {
 	return calls
 }
 
-// DeleteByToken calls DeleteByTokenFunc.
-func (mock *StoreMock) DeleteByToken(ctx context.Context, tok string) error {
-	if mock.DeleteByTokenFunc == nil {
-		panic("StoreMock.DeleteByTokenFunc: method is nil but Store.DeleteByToken was just called")
+// DeleteByID calls DeleteByIDFunc.
+func (mock *StoreMock) DeleteByID(ctx context.Context, id string) error {
+	if mock.DeleteByIDFunc == nil {
+		panic("StoreMock.DeleteByIDFunc: method is nil but Store.DeleteByID was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
-		Tok string
+		ID  string
 	}{
 		Ctx: ctx,
-		Tok: tok,
+		ID:  id,
 	}
-	lockStoreMockDeleteByToken.Lock()
-	mock.calls.DeleteByToken = append(mock.calls.DeleteByToken, callInfo)
-	lockStoreMockDeleteByToken.Unlock()
-	return mock.DeleteByTokenFunc(ctx, tok)
+	lockStoreMockDeleteByID.Lock()
+	mock.calls.DeleteByID = append(mock.calls.DeleteByID, callInfo)
+	lockStoreMockDeleteByID.Unlock()
+	return mock.DeleteByIDFunc(ctx, id)
 }
 
-// DeleteByTokenCalls gets all the calls that were made to DeleteByToken.
+// DeleteByIDCalls gets all the calls that were made to DeleteByID.
 // Check the length with:
-//     len(mockedStore.DeleteByTokenCalls())
-func (mock *StoreMock) DeleteByTokenCalls() []struct {
+//     len(mockedStore.DeleteByIDCalls())
+func (mock *StoreMock) DeleteByIDCalls() []struct {
 	Ctx context.Context
-	Tok string
+	ID  string
 } {
 	var calls []struct {
 		Ctx context.Context
-		Tok string
+		ID  string
 	}
-	lockStoreMockDeleteByToken.RLock()
-	calls = mock.calls.DeleteByToken
-	lockStoreMockDeleteByToken.RUnlock()
+	lockStoreMockDeleteByID.RLock()
+	calls = mock.calls.DeleteByID
+	lockStoreMockDeleteByID.RUnlock()
 	return calls
 }
 
 // DeleteByUserKey calls DeleteByUserKeyFunc.
-func (mock *StoreMock) DeleteByUserKey(ctx context.Context, key string, expTok ...string) error {
+func (mock *StoreMock) DeleteByUserKey(ctx context.Context, key string, expID ...string) error {
 	if mock.DeleteByUserKeyFunc == nil {
 		panic("StoreMock.DeleteByUserKeyFunc: method is nil but Store.DeleteByUserKey was just called")
 	}
 	callInfo := struct {
-		Ctx    context.Context
-		Key    string
-		ExpTok []string
+		Ctx   context.Context
+		Key   string
+		ExpID []string
 	}{
-		Ctx:    ctx,
-		Key:    key,
-		ExpTok: expTok,
+		Ctx:   ctx,
+		Key:   key,
+		ExpID: expID,
 	}
 	lockStoreMockDeleteByUserKey.Lock()
 	mock.calls.DeleteByUserKey = append(mock.calls.DeleteByUserKey, callInfo)
 	lockStoreMockDeleteByUserKey.Unlock()
-	return mock.DeleteByUserKeyFunc(ctx, key, expTok...)
+	return mock.DeleteByUserKeyFunc(ctx, key, expID...)
 }
 
 // DeleteByUserKeyCalls gets all the calls that were made to DeleteByUserKey.
 // Check the length with:
 //     len(mockedStore.DeleteByUserKeyCalls())
 func (mock *StoreMock) DeleteByUserKeyCalls() []struct {
-	Ctx    context.Context
-	Key    string
-	ExpTok []string
+	Ctx   context.Context
+	Key   string
+	ExpID []string
 } {
 	var calls []struct {
-		Ctx    context.Context
-		Key    string
-		ExpTok []string
+		Ctx   context.Context
+		Key   string
+		ExpID []string
 	}
 	lockStoreMockDeleteByUserKey.RLock()
 	calls = mock.calls.DeleteByUserKey
@@ -214,38 +214,38 @@ func (mock *StoreMock) DeleteByUserKeyCalls() []struct {
 	return calls
 }
 
-// FetchByToken calls FetchByTokenFunc.
-func (mock *StoreMock) FetchByToken(ctx context.Context, tok string) (Session, error) {
-	if mock.FetchByTokenFunc == nil {
-		panic("StoreMock.FetchByTokenFunc: method is nil but Store.FetchByToken was just called")
+// FetchByID calls FetchByIDFunc.
+func (mock *StoreMock) FetchByID(ctx context.Context, id string) (Session, bool, error) {
+	if mock.FetchByIDFunc == nil {
+		panic("StoreMock.FetchByIDFunc: method is nil but Store.FetchByID was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
-		Tok string
+		ID  string
 	}{
 		Ctx: ctx,
-		Tok: tok,
+		ID:  id,
 	}
-	lockStoreMockFetchByToken.Lock()
-	mock.calls.FetchByToken = append(mock.calls.FetchByToken, callInfo)
-	lockStoreMockFetchByToken.Unlock()
-	return mock.FetchByTokenFunc(ctx, tok)
+	lockStoreMockFetchByID.Lock()
+	mock.calls.FetchByID = append(mock.calls.FetchByID, callInfo)
+	lockStoreMockFetchByID.Unlock()
+	return mock.FetchByIDFunc(ctx, id)
 }
 
-// FetchByTokenCalls gets all the calls that were made to FetchByToken.
+// FetchByIDCalls gets all the calls that were made to FetchByID.
 // Check the length with:
-//     len(mockedStore.FetchByTokenCalls())
-func (mock *StoreMock) FetchByTokenCalls() []struct {
+//     len(mockedStore.FetchByIDCalls())
+func (mock *StoreMock) FetchByIDCalls() []struct {
 	Ctx context.Context
-	Tok string
+	ID  string
 } {
 	var calls []struct {
 		Ctx context.Context
-		Tok string
+		ID  string
 	}
-	lockStoreMockFetchByToken.RLock()
-	calls = mock.calls.FetchByToken
-	lockStoreMockFetchByToken.RUnlock()
+	lockStoreMockFetchByID.RLock()
+	calls = mock.calls.FetchByID
+	lockStoreMockFetchByID.RUnlock()
 	return calls
 }
 

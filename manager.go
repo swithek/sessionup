@@ -10,9 +10,7 @@ import (
 	"github.com/dchest/uniuri"
 )
 
-const (
-	defaultName = "sessionup"
-)
+const defaultName = "sessionup"
 
 // Manager holds the data needed to properly create sessions
 // and set them in http responses, extract them from http requests,
@@ -134,13 +132,10 @@ func Reject(r func(error) http.Handler) setter {
 	}
 }
 
-// NewManager creates a new Manager with the provided store and
-// options applied to it.
+// NewManager creates a new Manager with the provided store
+// and options applied to it.
 func NewManager(s Store, opts ...setter) *Manager {
-	m := &Manager{
-		store: s,
-	}
-
+	m := &Manager{store: s}
 	m.Defaults()
 
 	for _, o := range opts {
@@ -175,10 +170,10 @@ func rejector(err error) http.Handler {
 	})
 }
 
-// idGenerator is the default id generation function called during
+// idGenerator is the default ID generation function called during
 // session creation.
 func idGenerator() string {
-	return uniuri.NewLen(uriuri.UUIDLen)
+	return uniuri.NewLen(uniuri.UUIDLen)
 }
 
 // Clone copies the manager to its fresh copy and applies provided
@@ -193,8 +188,8 @@ func (m *Manager) Clone(opts ...setter) *Manager {
 	return cm
 }
 
-// Init creates a fresh session, inserts it in the store and sets its values in the
-// cookie.
+// Init creates a fresh session, inserts it in the store and sets the proper values
+// of the cookie.
 func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string) error {
 	s := m.newSession(r, key)
 	if err := m.store.Create(r.Context(), s); err != nil {
@@ -266,8 +261,8 @@ func (m *Manager) RevokeAll(ctx context.Context, w http.ResponseWriter, key stri
 }
 
 // FetchAll retrieves all sessions of the same user key, including the one stored in the
-// context. Session with the same Id as the one stored in the context will have its 'Current'
-// field set to true.
+// context. Session with the same ID as the one stored in the context will have its 'Current'
+// field set to true. If no session are found, both return values will be nil.
 func (m *Manager) FetchAll(ctx context.Context, key string) ([]Session, error) {
 	ss, err := m.store.FetchByUserKey(ctx, key)
 	if err != nil {
@@ -293,8 +288,8 @@ func (m *Manager) FetchAll(ctx context.Context, key string) ([]Session, error) {
 	return ss, nil
 }
 
-// createCookie creates and sets cookie values to the options set in the manager and provided
-// as parameters.
+// createCookie creates a cookie and sets its values to the options set in the manager
+// and provided as parameters.
 func (m *Manager) createCookie(w http.ResponseWriter, exp time.Time, tok string) {
 	c := &http.Cookie{
 		Name:     m.cookie.name,
@@ -310,14 +305,14 @@ func (m *Manager) createCookie(w http.ResponseWriter, exp time.Time, tok string)
 	http.SetCookie(w, c)
 }
 
-// deleteCookie overrides the existing cookie with values that would require the
-// client to delete it immediatly.
+// deleteCookie creates a cookie and overrides the existing one with values that
+// would require the client to delete it immediatly.
 func (m *Manager) deleteCookie(w http.ResponseWriter) {
 	c := &http.Cookie{
 		Name:     m.cookie.name,
 		Path:     m.cookie.path,
 		Domain:   m.cookie.domain,
-		Expires:  time.Now().Add(-time.Hour * 24),
+		Expires:  time.Now().Add(-time.Hour * 24 * 30),
 		Secure:   m.cookie.secure,
 		HttpOnly: m.cookie.httpOnly,
 		SameSite: m.cookie.sameSite,
