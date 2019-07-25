@@ -7,26 +7,47 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dchest/uniuri"
 	"xojoc.pw/useragent"
 )
 
+// Session holds all the data needed to identify a session.
 type Session struct {
-	Current bool      `json:"current"`
+	// Current specifies whether this session's ID
+	// matches the ID stored in the request's cookie.
+	// NOTE: this field should not be stored in the store.
+	Current bool `json:"current"`
+
+	// Expires epecifies a point in time when this
+	// session should become invalid and be deleted
+	// from the store.
 	Expires time.Time `json:"-"`
-	Token   string    `json:"-"`
-	UserKey string    `json:"-"`
-	IP      net.IP    `json:"ip"`
-	Agent   struct {
+
+	// ID specifies a unique ID used to find this session
+	// in the store.
+	ID string `json:"id"`
+
+	// UserKey specifies the non-unique key used to find all
+	// sessions of the same user.
+	UserKey string `json:"-"`
+
+	// IP specifies the IP address that was used to create
+	// this session
+	IP net.IP `json:"ip"`
+
+	// Agent specifies the User-Agent data that was used
+	// to create this session.
+	Agent struct {
 		OS      string `json:"os"`
 		Browser string `json:"browser"`
 	} `json:"agent"`
 }
 
+// newSession creates a new Session with the data extracted from
+// the provided request, user key and a freshly generated ID.
 func (m *Manager) newSession(r *http.Request, key string) Session {
 	s := Session{
 		Expires: time.Now().Add(m.expires),
-		Token:   uniuri.NewLen(uniuri.UUIDLen),
+		ID:      m.genID(),
 		UserKey: key,
 	}
 
@@ -45,6 +66,7 @@ func (m *Manager) newSession(r *http.Request, key string) Session {
 	return s
 }
 
+// readIP tries to extract the real IP of the client from the provided request.
 func readIP(r *http.Request) net.IP {
 	ips := strings.Split(r.Header.Get("X-Forwarded-For"), ", ")
 	ip := ips[len(ips)-1]
@@ -60,10 +82,13 @@ type contextKey int
 
 const sessionKey contextKey = 0
 
+// newContext creates a new context with the provided Session set as
+// a context value.
 func newContext(ctx context.Context, s Session) context.Context {
 	return context.WithValue(ctx, sessionKey, s)
 }
 
+// FromContext extracts Session from the context, if its present.
 func FromContext(ctx context.Context) (Session, bool) {
 	s, ok := ctx.Value(sessionKey).(Session)
 	return s, ok

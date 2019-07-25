@@ -10,10 +10,13 @@ import (
 	"github.com/dchest/uniuri"
 )
 
-var (
-	ErrInvalidToken = errors.New("invalid session token")
+const (
+	defaultName = "sessionup"
 )
 
+// Manager holds the data needed to properly create sessions
+// and set them in http responses, extract them from http requests,
+// validate them and directly communicate with the store.
 type Manager struct {
 	store  Store
 	cookie struct {
@@ -24,75 +27,115 @@ type Manager struct {
 		httpOnly bool
 		sameSite http.SameSite
 	}
-	expires   time.Duration
+	expiresIn time.Duration
 	withIP    bool
 	withAgent bool
 
+	genID  func() string
 	reject func(error) http.Handler
 }
 
+// setter is used to set Manager configuration options.
 type setter func(*Manager)
 
+// CookieName sets the name of the cookie.
+// Defaults to the value stored in defaultName.
 func CookieName(n string) setter {
 	return func(m *Manager) {
 		m.cookie.name = n
 	}
 }
 
+// Domain sets the 'Domain' attribute on the session cookie.
+// Defaults to empty string.
+// More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Scope_of_cookies
 func Domain(d string) setter {
 	return func(m *Manager) {
 		m.cookie.domain = d
 	}
 }
 
+// Path sets the 'Path' attribute on the session cookie.
+// Defaults to "/".
+// More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Scope_of_cookies
 func Path(p string) setter {
 	return func(m *Manager) {
 		m.cookie.path = p
 	}
 }
 
+// Secure sets the 'Secure' attribute on the session cookie.
+// Defaults to true.
+// More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Secure_and_HttpOnly_cookies
 func Secure(s bool) setter {
 	return func(m *Manager) {
 		m.cookie.secure = s
 	}
 }
 
+// HttpOnly sets the 'HttpOnly' attribute on the session cookie.
+// Defaults to true.
+// More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Secure_and_HttpOnly_cookies
 func HttpOnly(h bool) setter {
 	return func(m *Manager) {
 		m.cookie.httpOnly = h
 	}
 }
 
+// SameSite sets the 'SameSite' attribute on the session cookie.
+// Defaults to http.SameSiteStrictMode.
+// More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#SameSite_cookies
 func SameSite(s http.SameSite) setter {
 	return func(m *Manager) {
 		m.cookie.sameSite = s
 	}
 }
 
-func Expires(e time.Duration) setter {
+// ExpiresIn sets the duration which will be used to calculate the value
+// of 'Expires' attribute on the session cookie.
+// If unset, 'Expires' attribute will be omitted.
+// By default it is not set.
+// More about Expires at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Session_cookies
+func ExpiresIn(e time.Duration) setter {
 	return func(m *Manager) {
-		m.expires = e
+		m.expiresIn = e
 	}
 }
 
+// WithIP sets whether IP should be extracted
+// from the request or not.
 func WithIP(w bool) setter {
 	return func(m *Manager) {
 		m.withIP = w
 	}
 }
 
+// WithAgent sets whether User-Agent data should
+// be extracted from the request or not.
 func WithAgent(w bool) setter {
 	return func(m *Manager) {
 		m.withAgent = w
 	}
 }
 
+// GenID sets the function which will be called when a new session
+// is created and ID is being generated.
+func GenID(g func() string) setter {
+	return func(m *Manager) {
+		m.genID = g
+	}
+}
+
+// Reject sets the function which will be called on error in Auth
+// middleware.
 func Reject(r func(error) http.Handler) setter {
 	return func(m *Manager) {
 		m.reject = r
 	}
 }
 
+// NewManager creates a new Manager with the provided store and
+// options applied to it.
 func NewManager(s Store, opts ...setter) *Manager {
 	m := &Manager{
 		store: s,
@@ -107,18 +150,22 @@ func NewManager(s Store, opts ...setter) *Manager {
 	return m
 }
 
+// Defaults sets all configuration options to reasonable
+// defaults.
 func (m *Manager) Defaults() {
-	m.cookie.name = "sessionup"
+	m.cookie.name = defaultName
 	m.cookie.path = "/"
 	m.cookie.secure = true
 	m.cookie.httpOnly = true
-	m.cookie.sameSite = http.SameSiteLaxMode
+	m.cookie.sameSite = http.SameSiteStrictMode
 	m.withIP = true
 	m.withAgent = true
-	m.reject = rejectHandler
+	m.genID = idGenerator
+	m.reject = rejector
 }
 
-func rejectHandler(err error) http.Handler {
+// rejector is the default rejection function called on error.
+func rejector(err error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -128,6 +175,14 @@ func rejectHandler(err error) http.Handler {
 	})
 }
 
+// idGenerator is the default id generation function called during
+// session creation.
+func idGenerator() string {
+	return uniuri.NewLen(uriuri.UUIDLen)
+}
+
+// Clone copies the manager to its fresh copy and applies provided
+// options.
 func (m *Manager) Clone(opts ...setter) *Manager {
 	cm := &Manager{}
 	*cm = *m
@@ -138,16 +193,20 @@ func (m *Manager) Clone(opts ...setter) *Manager {
 	return cm
 }
 
+// Init creates a fresh session, inserts it in the store and sets its values in the
+// cookie.
 func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string) error {
 	s := m.newSession(r, key)
 	if err := m.store.Create(r.Context(), s); err != nil {
 		return err
 	}
 
-	m.createCookie(w, s.Expires, s.Token)
+	m.createCookie(w, s.Expires, s.ID)
 	return nil
 }
 
+// Auth is a middleware used to authenticate the incoming request by extracting
+// session ID from the cookie and checking its existence in the store.
 func (m *Manager) Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(m.cookie.name)
@@ -156,15 +215,15 @@ func (m *Manager) Auth(next http.Handler) http.Handler {
 			return
 		}
 
-		if len(c.Value) != uniuri.UUIDLen {
-			m.reject(ErrInvalidToken).ServeHTTP(w, r)
+		ctx := r.Context()
+		s, ok, err := m.store.FetchByID(ctx, c.Value)
+		if err != nil {
+			m.reject(err).ServeHTTP(w, r)
 			return
 		}
 
-		ctx := r.Context()
-		s, err := m.store.FetchByToken(ctx, c.Value)
-		if err != nil {
-			m.reject(err).ServeHTTP(w, r)
+		if !ok {
+			m.reject(errors.New("unauthorized")).ServeHTTP(w, r)
 			return
 		}
 
@@ -172,13 +231,15 @@ func (m *Manager) Auth(next http.Handler) http.Handler {
 	})
 }
 
+// Revoke deletes the current session, stored in the context, from the store
+// and ensures cookie deletion.
 func (m *Manager) Revoke(ctx context.Context, w http.ResponseWriter) error {
 	s, ok := FromContext(ctx)
 	if !ok {
 		return nil
 	}
 
-	if err := m.store.DeleteByToken(ctx, s.Token); err != nil {
+	if err := m.store.DeleteByID(ctx, s.ID); err != nil {
 		return err
 	}
 
@@ -186,11 +247,15 @@ func (m *Manager) Revoke(ctx context.Context, w http.ResponseWriter) error {
 	return nil
 }
 
+// RevokeOther deletes all sessions of the same user key except the current session,
+// stored in the context.
 func (m *Manager) RevokeOther(ctx context.Context, key string) error {
 	s, _ := FromContext(ctx)
-	return m.store.DeleteByUserKey(ctx, key, s.Token)
+	return m.store.DeleteByUserKey(ctx, key, s.ID)
 }
 
+// RevokeAll deletes all sessions of the same user key, including the one stored in the
+// context, and ensures cookie deletion.
 func (m *Manager) RevokeAll(ctx context.Context, w http.ResponseWriter, key string) error {
 	if err := m.store.DeleteByUserKey(ctx, key); err != nil {
 		return err
@@ -200,10 +265,17 @@ func (m *Manager) RevokeAll(ctx context.Context, w http.ResponseWriter, key stri
 	return nil
 }
 
+// FetchAll retrieves all sessions of the same user key, including the one stored in the
+// context. Session with the same Id as the one stored in the context will have its 'Current'
+// field set to true.
 func (m *Manager) FetchAll(ctx context.Context, key string) ([]Session, error) {
 	ss, err := m.store.FetchByUserKey(ctx, key)
 	if err != nil {
 		return nil, err
+	}
+
+	if ss == nil {
+		return nil, nil
 	}
 
 	cs, ok := FromContext(ctx)
@@ -212,7 +284,7 @@ func (m *Manager) FetchAll(ctx context.Context, key string) ([]Session, error) {
 	}
 
 	for i, s := range ss {
-		if s.Token == cs.Token {
+		if s.ID == cs.ID {
 			s.Current = true
 			ss[i] = s
 			break
@@ -221,6 +293,8 @@ func (m *Manager) FetchAll(ctx context.Context, key string) ([]Session, error) {
 	return ss, nil
 }
 
+// createCookie creates and sets cookie values to the options set in the manager and provided
+// as parameters.
 func (m *Manager) createCookie(w http.ResponseWriter, exp time.Time, tok string) {
 	c := &http.Cookie{
 		Name:     m.cookie.name,
@@ -236,12 +310,14 @@ func (m *Manager) createCookie(w http.ResponseWriter, exp time.Time, tok string)
 	http.SetCookie(w, c)
 }
 
+// deleteCookie overrides the existing cookie with values that would require the
+// client to delete it immediatly.
 func (m *Manager) deleteCookie(w http.ResponseWriter) {
 	c := &http.Cookie{
 		Name:     m.cookie.name,
 		Path:     m.cookie.path,
 		Domain:   m.cookie.domain,
-		Expires:  time.Now().Add(-time.Hour),
+		Expires:  time.Now().Add(-time.Hour * 24),
 		Secure:   m.cookie.secure,
 		HttpOnly: m.cookie.httpOnly,
 		SameSite: m.cookie.sameSite,
