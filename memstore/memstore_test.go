@@ -1,7 +1,8 @@
-package memory
+package memstore
 
 import (
 	"context"
+	"reflect"
 	"sessionup"
 	"testing"
 	"time"
@@ -9,20 +10,32 @@ import (
 
 func TestNew(t *testing.T) {
 	m := New(0)
-	if m.sessions == nil || m.users == nil {
-		t.Error("memory store is invalid")
+	if m.sessions == nil {
+		t.Error("want non-nil, got nil")
+	}
+
+	if m.users == nil {
+		t.Error("want non-nil, got nil")
 	}
 
 	m = New(5 * time.Minute)
-	if m.sessions == nil || m.users == nil || m.stop != nil {
-		t.Error("memory store with cleanup process is invalid")
+	if m.sessions == nil {
+		t.Error("want non-nil, got nil")
+	}
+
+	if m.users == nil {
+		t.Error("want non-nil, got nil")
+	}
+
+	if m.stop != nil {
+		t.Error("want non-nil, got nil")
 	}
 
 	m.StopCleanup()
 }
 
 func TestCreate(t *testing.T) {
-	m := Memory{
+	m := MemStore{
 		sessions: make(map[string]sessionup.Session),
 		users:    make(map[string][]string),
 	}
@@ -31,42 +44,75 @@ func TestCreate(t *testing.T) {
 
 	err := m.Create(context.Background(), sessionup.Session{ID: "id", UserKey: "key"})
 	if err != sessionup.ErrDuplicateID {
-		t.Error("error is invalid")
+		t.Errorf("want %v, got %v", sessionup.ErrDuplicateID, err)
 	}
 
-	err = m.Create(context.Background(), sessionup.Session{ID: "id1", UserKey: "key"})
+	exp := sessionup.Session{ID: "id1", UserKey: "key"}
+	err = m.Create(context.Background(), exp)
 	if err != nil {
-		t.Error("error is invalid")
+		t.Errorf("want nil, got non-nil")
 	}
 
 	s, ok := m.sessions["id1"]
+	if !ok {
+		t.Errorf("want %t, got %t", true, ok)
+	}
+
+	if !reflect.DeepEqual(s, exp) {
+		t.Errorf("want %v, got %v", exp, s)
+	}
+
 	ids, ok1 := m.users["key"]
-	if !ok1 || len(ids) != 1 || ids[0] != "id1" || !ok || s.ID != "id1" || s.UserKey != "key" {
-		t.Error("session data stored in memory is invalid")
+	if !ok1 {
+		t.Errorf("want %t, got %t", true, ok1)
+	}
+
+	if len(ids) != 1 {
+		t.Errorf("want %d, got %d", 1, len(ids))
+	}
+
+	if ids[0] != exp.ID {
+		t.Errorf("want %q, got %q", exp.ID, ids[0])
 	}
 }
 
 func TestFetchByID(t *testing.T) {
-	m := Memory{
+	m := MemStore{
 		sessions: make(map[string]sessionup.Session),
 		users:    make(map[string][]string),
 	}
 
 	m.sessions["id"] = sessionup.Session{ID: "id"}
 	s, ok, err := m.FetchByID(context.Background(), "id")
-	if s.ID != "" || ok || err != nil {
-		t.Error("returned values are invalid")
+	if s.ID != "" {
+		t.Errorf("want %s, got %q", "non-empty", s.ID)
+	}
+
+	if ok {
+		t.Errorf("want %t, got %t", false, ok)
+	}
+
+	if err != nil {
+		t.Errorf("want nil, got %v", err)
 	}
 
 	m.sessions["id"] = sessionup.Session{ID: "id", Expires: time.Now().Add(time.Hour)}
 	s, ok, err = m.FetchByID(context.Background(), "id")
-	if s.ID == "" || !ok || err != nil {
-		t.Error("returned values are invalid")
+	if s.ID == "" {
+		t.Errorf("want %q, got %q", "", s.ID)
+	}
+
+	if !ok {
+		t.Errorf("want %t, got %t", true, ok)
+	}
+
+	if err != nil {
+		t.Errorf("want nil, got %v", err)
 	}
 }
 
 func TestFetchByUserKey(t *testing.T) {
-	m := Memory{
+	m := MemStore{
 		sessions: make(map[string]sessionup.Session),
 		users:    make(map[string][]string),
 	}
@@ -76,21 +122,27 @@ func TestFetchByUserKey(t *testing.T) {
 	m.sessions["id2"] = sessionup.Session{ID: "id2", UserKey: "key"}
 	m.sessions["id3"] = sessionup.Session{ID: "id3", UserKey: "key"}
 	ss, err := m.FetchByUserKey(context.Background(), "key")
-	if ss != nil || err != nil {
-		t.Error("returned values are invalid")
+	if ss != nil {
+		t.Error("want non-nil, got nil")
+	}
+	if err != nil {
+		t.Errorf("want nil, got %v", err)
 	}
 
 	m.sessions["id1"] = sessionup.Session{ID: "id1", UserKey: "key", Expires: time.Now().Add(time.Hour)}
 	m.sessions["id2"] = sessionup.Session{ID: "id2", UserKey: "key", Expires: time.Now().Add(time.Hour)}
 	m.sessions["id3"] = sessionup.Session{ID: "id3", UserKey: "key", Expires: time.Now().Add(time.Hour)}
 	ss, err = m.FetchByUserKey(context.Background(), "key")
-	if len(ss) != 3 || err != nil {
-		t.Error("returned values are invalid")
+	if len(ss) != 3 {
+		t.Errorf("want %d, got %d", 3, len(ss))
+	}
+	if err != nil {
+		t.Errorf("want nil, got %v", err)
 	}
 }
 
 func TestDeleteByID(t *testing.T) {
-	m := Memory{
+	m := MemStore{
 		sessions: make(map[string]sessionup.Session),
 		users:    make(map[string][]string),
 	}
@@ -102,25 +154,33 @@ func TestDeleteByID(t *testing.T) {
 
 	err := m.DeleteByID(context.Background(), "id30")
 	if err != nil {
-		t.Error("error is invalid")
+		t.Errorf("want nil, got %v", err)
 	}
 
-	if len(m.sessions) != 3 || len(m.users["key"]) != 3 {
-		t.Error("session count is invalid")
+	if len(m.sessions) != 3 {
+		t.Errorf("want %d, got %d", 3, len(m.sessions))
+	}
+
+	if len(m.users["key"]) != 3 {
+		t.Errorf("want %d, got %d", 3, len(m.users["key"]))
 	}
 
 	err = m.DeleteByID(context.Background(), "id3")
 	if err != nil {
-		t.Error("error is invalid")
+		t.Errorf("want nil, got %v", err)
 	}
 
-	if len(m.sessions) != 2 || len(m.users["key"]) != 2 {
-		t.Error("session count is invalid")
+	if len(m.sessions) != 2 {
+		t.Errorf("want %d, got %d", 2, len(m.sessions))
+	}
+
+	if len(m.users["key"]) != 2 {
+		t.Errorf("want %d, got %d", 2, len(m.users["key"]))
 	}
 }
 
 func TestDeleteByUserKey(t *testing.T) {
-	m := Memory{
+	m := MemStore{
 		sessions: make(map[string]sessionup.Session),
 		users:    make(map[string][]string),
 	}
@@ -133,12 +193,19 @@ func TestDeleteByUserKey(t *testing.T) {
 
 	err := m.DeleteByUserKey(context.Background(), "key", "id1")
 	if err != nil {
-		t.Error("error is invalid")
+		t.Errorf("want nil, got %v", err)
 	}
 
 	_, ok := m.sessions["id1"]
-	if len(m.users) != 1 || len(m.sessions) != 2 || !ok {
-		t.Error("session count is invalid")
+	if !ok {
+		t.Errorf("want %t, got %t", true, ok)
+	}
+	if len(m.sessions) != 2 {
+		t.Errorf("want %d, got %d", 2, len(m.sessions))
+	}
+
+	if len(m.users) != 1 {
+		t.Errorf("want %d, got %d", 1, len(m.users))
 	}
 
 	err = m.DeleteByUserKey(context.Background(), "key")
@@ -147,13 +214,20 @@ func TestDeleteByUserKey(t *testing.T) {
 	}
 
 	_, ok = m.sessions["id1"]
-	if len(m.users) != 0 || len(m.sessions) != 1 || ok {
-		t.Error("session count is invalid")
+	if ok {
+		t.Errorf("want %t, got %t", false, ok)
+	}
+	if len(m.sessions) != 1 {
+		t.Errorf("want %d, got %d", 1, len(m.sessions))
+	}
+
+	if len(m.users) != 0 {
+		t.Errorf("want %d, got %d", 0, len(m.users))
 	}
 }
 
 func TestDel(t *testing.T) {
-	m := Memory{
+	m := MemStore{
 		sessions: make(map[string]sessionup.Session),
 		users:    make(map[string][]string),
 	}
@@ -161,17 +235,30 @@ func TestDel(t *testing.T) {
 	m.sessions["id1"] = sessionup.Session{ID: "id1", UserKey: "key"}
 	m.sessions["id2"] = sessionup.Session{ID: "id2", UserKey: "key"}
 	m.del("id1", "key")
-	if len(m.users) != 1 || len(m.users["key"]) != 1 || len(m.sessions) != 1 {
-		t.Error("session count is invalid")
+	if len(m.sessions) != 1 {
+		t.Errorf("want %d, got %d", 1, len(m.sessions))
 	}
+
+	if len(m.users) != 1 {
+		t.Errorf("want %d, got %d", 1, len(m.users))
+	}
+
+	if len(m.users["key"]) != 1 {
+		t.Errorf("want %d, got %d", 1, len(m.users["key"]))
+	}
+
 	m.del("id2", "key")
-	if len(m.users) != 0 || len(m.sessions) != 0 {
-		t.Error("session count is invalid")
+	if len(m.sessions) != 0 {
+		t.Errorf("want %d, got %d", 0, len(m.sessions))
+	}
+
+	if len(m.users) != 0 {
+		t.Errorf("want %d, got %d", 0, len(m.users))
 	}
 }
 
 func TestDeleteExpired(t *testing.T) {
-	m := Memory{
+	m := MemStore{
 		sessions: make(map[string]sessionup.Session),
 		users:    make(map[string][]string),
 	}
@@ -180,13 +267,17 @@ func TestDeleteExpired(t *testing.T) {
 	m.sessions["id2"] = sessionup.Session{ID: "id2", UserKey: "key"}
 	m.sessions["id3"] = sessionup.Session{ID: "id2", UserKey: "key", Expires: time.Now().Add(time.Hour)}
 	m.deleteExpired()
-	if len(m.users["key"]) != 1 || len(m.sessions) != 1 {
-		t.Error("session count is invalid")
+	if len(m.sessions) != 1 {
+		t.Errorf("want %d, got %d", 1, len(m.sessions))
+	}
+
+	if len(m.users["key"]) != 1 {
+		t.Errorf("want %d, got %d", 1, len(m.users["key"]))
 	}
 }
 
 func TestStartCleanup(t *testing.T) {
-	m := Memory{
+	m := MemStore{
 		sessions: make(map[string]sessionup.Session),
 		users:    make(map[string][]string),
 	}
@@ -196,7 +287,11 @@ func TestStartCleanup(t *testing.T) {
 	go m.startCleanup(time.Microsecond)
 	time.Sleep(time.Microsecond * 400)
 	m.StopCleanup()
-	if len(m.users) != 0 || len(m.sessions) != 0 {
-		t.Error("session count is invalid")
+	if len(m.sessions) != 0 {
+		t.Errorf("want %d, got %d", 0, len(m.sessions))
+	}
+
+	if len(m.users) != 0 {
+		t.Errorf("want %d, got %d", 0, len(m.users))
 	}
 }

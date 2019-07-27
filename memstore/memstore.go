@@ -1,4 +1,4 @@
-package memory
+package memstore
 
 import (
 	"context"
@@ -7,22 +7,22 @@ import (
 	"time"
 )
 
-// Memory is an in-memory implementation of sessionup.Store.
+// MemStore is an in-memory implementation of sessionup.Store.
 // Since session data is being kept in memory, it will be lost
 // once the application is closed.
-type Memory struct {
+type MemStore struct {
 	mu       sync.RWMutex
 	sessions map[string]sessionup.Session
 	users    map[string][]string
 	stop     chan struct{}
 }
 
-// New returns a fresh instance of in-memory session store.
+// New returns a fresh instance of MemStore.
 // Duration parameter determines how often the cleanup
 // function wil be called to remove the expired sessions.
 // Setting it to 0 will prevent cleanup from being activated.
-func New(d time.Duration) *Memory {
-	m := &Memory{
+func New(d time.Duration) *MemStore {
+	m := &MemStore{
 		sessions: make(map[string]sessionup.Session),
 		users:    make(map[string][]string),
 	}
@@ -35,7 +35,7 @@ func New(d time.Duration) *Memory {
 }
 
 // Create implements sessionup.Store interface's Create method.
-func (m *Memory) Create(_ context.Context, s sessionup.Session) error {
+func (m *MemStore) Create(_ context.Context, s sessionup.Session) error {
 	m.mu.Lock()
 	_, ok := m.sessions[s.ID]
 	if ok {
@@ -50,7 +50,7 @@ func (m *Memory) Create(_ context.Context, s sessionup.Session) error {
 }
 
 // FetchByID implements sessionup.Store interface's FetchByID method.
-func (m *Memory) FetchByID(_ context.Context, id string) (sessionup.Session, bool, error) {
+func (m *MemStore) FetchByID(_ context.Context, id string) (sessionup.Session, bool, error) {
 	m.mu.RLock()
 	s, ok := m.sessions[id]
 	m.mu.RUnlock()
@@ -61,7 +61,7 @@ func (m *Memory) FetchByID(_ context.Context, id string) (sessionup.Session, boo
 }
 
 // FetchByUserKey implements sessionup.Store interface's FetchByUserKey method.
-func (m *Memory) FetchByUserKey(_ context.Context, key string) ([]sessionup.Session, error) {
+func (m *MemStore) FetchByUserKey(_ context.Context, key string) ([]sessionup.Session, error) {
 	m.mu.RLock()
 	ids := m.users[key]
 	var ss []sessionup.Session
@@ -76,7 +76,7 @@ func (m *Memory) FetchByUserKey(_ context.Context, key string) ([]sessionup.Sess
 }
 
 // DeleteByID implements sessionup.Store interface's DeleteByID method.
-func (m *Memory) DeleteByID(_ context.Context, id string) error {
+func (m *MemStore) DeleteByID(_ context.Context, id string) error {
 	m.mu.Lock()
 	s, ok := m.sessions[id]
 	if !ok {
@@ -90,7 +90,7 @@ func (m *Memory) DeleteByID(_ context.Context, id string) error {
 }
 
 // DeleteByUserKey implements sessionup.Store interface's DeleteByUserKey method.
-func (m *Memory) DeleteByUserKey(_ context.Context, key string, expID ...string) error {
+func (m *MemStore) DeleteByUserKey(_ context.Context, key string, expID ...string) error {
 	m.mu.Lock()
 	ids := m.users[key]
 outer:
@@ -109,7 +109,7 @@ outer:
 
 // del deletes id from both sessions and users maps.
 // NOTE: should be enclosed with mutex locks when called.
-func (m *Memory) del(id, key string) {
+func (m *MemStore) del(id, key string) {
 	ids := m.users[key]
 	c := len(ids)
 	for i, v := range ids {
@@ -126,7 +126,7 @@ func (m *Memory) del(id, key string) {
 }
 
 // deleteExpired deletes all expired sessions.
-func (m *Memory) deleteExpired() {
+func (m *MemStore) deleteExpired() {
 	t := time.Now()
 	m.mu.Lock()
 	for _, s := range m.sessions {
@@ -140,7 +140,7 @@ func (m *Memory) deleteExpired() {
 // startCleanup activates repeated sessions checking and
 // deletion process.
 // NOTE: should be called on a separate goroutine.
-func (m *Memory) startCleanup(d time.Duration) {
+func (m *MemStore) startCleanup(d time.Duration) {
 	m.stop = make(chan struct{})
 	t := time.NewTicker(d)
 	for {
@@ -157,7 +157,7 @@ func (m *Memory) startCleanup(d time.Duration) {
 // StopCleanup terminates the automatic cleanup process.
 // Useful for testing and cases when memory store is used only temporary.
 // In order to restart the cleanup, new memory store must be created.
-func (m *Memory) StopCleanup() {
+func (m *MemStore) StopCleanup() {
 	if m.stop != nil {
 		m.stop <- struct{}{}
 	}

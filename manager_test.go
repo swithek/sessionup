@@ -10,8 +10,6 @@ import (
 	"reflect"
 	"testing"
 	"time"
-
-	"github.com/dchest/uniuri"
 )
 
 func TestCookieName(t *testing.T) {
@@ -19,7 +17,7 @@ func TestCookieName(t *testing.T) {
 	val := defaultName
 	CookieName(val)(&m)
 	if m.cookie.name != val {
-		t.Error("cookie name is invalid")
+		t.Errorf("want %q, got %q", val, m.cookie.name)
 	}
 }
 
@@ -28,7 +26,7 @@ func TestDomain(t *testing.T) {
 	val := "domain"
 	Domain(val)(&m)
 	if m.cookie.domain != val {
-		t.Error("domain is invalid")
+		t.Errorf("want %q, got %q", val, m.cookie.domain)
 	}
 }
 
@@ -37,7 +35,7 @@ func TestPath(t *testing.T) {
 	val := "/"
 	Path(val)(&m)
 	if m.cookie.path != val {
-		t.Error("path is invalid")
+		t.Errorf("want %q, got %q", val, m.cookie.path)
 	}
 }
 
@@ -46,7 +44,7 @@ func TestSecure(t *testing.T) {
 	val := true
 	Secure(val)(&m)
 	if m.cookie.secure != val {
-		t.Error("secure is invalid")
+		t.Errorf("want %t, got %t", val, m.cookie.secure)
 	}
 }
 
@@ -55,7 +53,7 @@ func TestHttpOnly(t *testing.T) {
 	val := true
 	HttpOnly(val)(&m)
 	if m.cookie.httpOnly != val {
-		t.Error("httpOnly is invalid")
+		t.Errorf("want %t, got %t", val, m.cookie.httpOnly)
 	}
 }
 
@@ -64,7 +62,7 @@ func TestSameSite(t *testing.T) {
 	val := http.SameSiteStrictMode
 	SameSite(val)(&m)
 	if m.cookie.sameSite != val {
-		t.Error("sameSite is invalid")
+		t.Errorf("want %v, got %v", val, m.cookie.sameSite)
 	}
 }
 
@@ -73,7 +71,7 @@ func TestExpiresIn(t *testing.T) {
 	val := time.Hour
 	ExpiresIn(val)(&m)
 	if m.expiresIn != val {
-		t.Error("expiresIn is invalid")
+		t.Errorf("want %v, got %v", val, m.expiresIn)
 	}
 }
 
@@ -82,7 +80,7 @@ func TestWithIP(t *testing.T) {
 	val := true
 	WithIP(val)(&m)
 	if m.withIP != val {
-		t.Error("withIP is invalid")
+		t.Errorf("want %t, got %t", val, m.withIP)
 	}
 }
 
@@ -91,7 +89,7 @@ func TestWithAgent(t *testing.T) {
 	val := true
 	WithAgent(val)(&m)
 	if m.withAgent != val {
-		t.Error("withAgent is invalid")
+		t.Errorf("want %t, got %t", val, m.withAgent)
 	}
 }
 
@@ -100,7 +98,7 @@ func TestGenID(t *testing.T) {
 	val := func() string { return "" }
 	GenID(val)(&m)
 	if m.genID == nil {
-		t.Error("genID is invalid")
+		t.Error("want non-nil, got nil")
 	}
 }
 
@@ -111,7 +109,7 @@ func TestReject(t *testing.T) {
 	}
 	Reject(val)(&m)
 	if m.reject == nil {
-		t.Error("reject is invalid")
+		t.Error("want non-nil, got nil")
 	}
 }
 
@@ -119,11 +117,15 @@ func TestNewManager(t *testing.T) {
 	s := &StoreMock{}
 	m := NewManager(s, WithIP(false), WithAgent(false))
 	if !reflect.DeepEqual(m.store, s) {
-		t.Error("store is invalid")
+		t.Errorf("want %v, got %v", s, m.store)
 	}
 
-	if m.withIP || m.withAgent {
-		t.Error("configuration options are invalid")
+	if m.withIP {
+		t.Errorf("want %t, got %t", false, m.withIP)
+	}
+
+	if m.withAgent {
+		t.Errorf("want %t, got %t", false, m.withAgent)
 	}
 }
 
@@ -139,14 +141,18 @@ func TestDefaults(t *testing.T) {
 
 	m := Manager{}
 	m.Defaults()
-	if m.genID == nil || m.reject == nil {
-		t.Error("default values are invalid")
+	if m.genID == nil {
+		t.Error("want non-nil, got nil")
+	}
+
+	if m.reject == nil {
+		t.Error("want non-nil, got nil")
 	}
 
 	m.genID = nil
 	m.reject = nil
 	if !reflect.DeepEqual(cm, m) {
-		t.Error("default values are invalid")
+		t.Errorf("want %v, got %v", cm, m)
 	}
 }
 
@@ -159,22 +165,23 @@ func TestRejector(t *testing.T) {
 
 	rejector(errors.New("major problem")).ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
-		t.Error("status code is invalid")
+		t.Errorf("want %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
 	if rec.Header().Get("Content-Type") != "application/json" {
-		t.Error("content type is invalid")
+		t.Errorf("want %q, got %q", "application/json", rec.Header().Get("Content-Type"))
 	}
 
-	if !reflect.DeepEqual(rec.Body.Bytes(), append(res, '\n')) {
-		t.Error("body is invalid")
+	bd := append(res, '\n')
+	if !reflect.DeepEqual(rec.Body.Bytes(), bd) {
+		t.Errorf("want %q, got %q", string(rec.Body.Bytes()), string(bd))
 	}
 }
 
 func TestIDGenerator(t *testing.T) {
 	id := idGenerator()
-	if len(id) != uniuri.UUIDLen {
-		t.Error("id is invalid")
+	if len(id) != idLen {
+		t.Errorf("want %d, got %d", idLen, len(id))
 	}
 }
 
@@ -183,11 +190,11 @@ func TestClone(t *testing.T) {
 
 	cm := m.Clone(WithAgent(true))
 	if !cm.withIP {
-		t.Error("manager clone values are invalid")
+		t.Errorf("want %t, got %t", true, cm.withIP)
 	}
 
 	if !cm.withAgent {
-		t.Error("manager clone option values are invalid")
+		t.Errorf("want %t, got %t", true, cm.withAgent)
 	}
 }
 
@@ -198,8 +205,10 @@ func TestInit(t *testing.T) {
 
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, _ *httptest.ResponseRecorder, err error) {
-			if e && err == nil || !e && err != nil {
-				t.Error("error is invalid")
+			if e && err == nil {
+				t.Errorf("want non-nil, got nil")
+			} else if !e && err != nil {
+				t.Errorf("want nil, got non-nil")
 			}
 		}
 	}
@@ -207,8 +216,10 @@ func TestInit(t *testing.T) {
 	hasCookie := func(c bool) check {
 		return func(t *testing.T, _ *StoreMock, rec *httptest.ResponseRecorder, _ error) {
 			cookies := rec.Result().Cookies()
-			if c && len(cookies) == 0 || !c && len(cookies) > 0 {
-				t.Fatal("response cookies count is invalid")
+			if c && len(cookies) == 0 {
+				t.Fatal("want >0, got 0")
+			} else if !c && len(cookies) > 0 {
+				t.Fatal("want 0, got >0")
 			}
 
 			if !c {
@@ -216,7 +227,7 @@ func TestInit(t *testing.T) {
 			}
 
 			if cookies[0].Value == "" {
-				t.Error("response cookie is invalid")
+				t.Errorf("want %q, got %q", "", cookies[0].Value)
 			}
 		}
 	}
@@ -225,11 +236,11 @@ func TestInit(t *testing.T) {
 		return func(t *testing.T, s *StoreMock, _ *httptest.ResponseRecorder, _ error) {
 			ff := s.CreateCalls()
 			if len(ff) != count {
-				t.Error("Create calls count is invalid")
+				t.Errorf("want %d, got %d", count, len(ff))
 			}
 
 			if len(ff) > 0 && ff[0].S.UserKey != key {
-				t.Error("Create session argument is invalid")
+				t.Errorf("want %q, got %q", key, ff[0].S.UserKey)
 			}
 		}
 	}
@@ -245,19 +256,30 @@ func TestInit(t *testing.T) {
 	key := "key"
 
 	cc := map[string]struct {
-		Store  *StoreMock
-		Checks []check
+		Store     *StoreMock
+		ExpiresIn time.Duration
+		Checks    []check
 	}{
 		"Error returned by store.Create": {
-			Store: storeStub(errors.New("error")),
+			Store:     storeStub(errors.New("error")),
+			ExpiresIn: time.Hour,
 			Checks: checks(
 				hasErr(true),
 				hasCookie(false),
 				wasCreateCalled(1, key),
 			),
 		},
-		"Successful init": {
+		"Successful init without expiration field": {
 			Store: storeStub(nil),
+			Checks: checks(
+				hasErr(false),
+				hasCookie(true),
+				wasCreateCalled(0, ""),
+			),
+		},
+		"Successful init": {
+			Store:     storeStub(nil),
+			ExpiresIn: time.Hour,
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
@@ -272,6 +294,7 @@ func TestInit(t *testing.T) {
 			t.Parallel()
 			m := Manager{store: c.Store}
 			m.Defaults()
+			m.expiresIn = c.ExpiresIn
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest("GET", "http://example.com/", nil)
@@ -291,11 +314,11 @@ func TestAuth(t *testing.T) {
 	hasResp := func(code int, b bool) check {
 		return func(t *testing.T, _ *StoreMock, rec *httptest.ResponseRecorder) {
 			if rec.Code != code {
-				t.Error("response code is invalid")
+				t.Errorf("want %d, got %d", code, rec.Code)
 			}
 
 			if b && rec.Body.Len() == 0 {
-				t.Error("response body is invalid")
+				t.Errorf("want non-empty, got empty")
 			}
 		}
 	}
@@ -304,11 +327,11 @@ func TestAuth(t *testing.T) {
 		return func(t *testing.T, s *StoreMock, _ *httptest.ResponseRecorder) {
 			ff := s.FetchByIDCalls()
 			if len(ff) != count {
-				t.Error("FetchByID calls count is invalid")
+				t.Errorf("want %d, got %d", count, len(ff))
 			}
 
 			if len(ff) > 0 && ff[0].ID != id {
-				t.Error("FetchByID id argument is invalid")
+				t.Errorf("want %q, got %q", id, ff[0].ID)
 			}
 		}
 	}
@@ -378,7 +401,7 @@ func TestAuth(t *testing.T) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, ok := FromContext(r.Context())
 			if !ok {
-				t.Error("invalid session retrieved from the context")
+				t.Errorf("want %t, got %t", true, ok)
 			}
 		})
 	}
@@ -407,8 +430,10 @@ func TestRevoke(t *testing.T) {
 
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, _ *httptest.ResponseRecorder, err error) {
-			if e && err == nil || !e && err != nil {
-				t.Error("error is invalid")
+			if e && err == nil {
+				t.Errorf("want non-nil, got nil")
+			} else if !e && err != nil {
+				t.Errorf("want nil, got non-nil")
 			}
 		}
 	}
@@ -416,16 +441,22 @@ func TestRevoke(t *testing.T) {
 	hasCookie := func(c bool) check {
 		return func(t *testing.T, _ *StoreMock, rec *httptest.ResponseRecorder, _ error) {
 			cookies := rec.Result().Cookies()
-			if c && len(cookies) == 0 || !c && len(cookies) > 0 {
-				t.Fatal("response cookies count is invalid")
+			if c && len(cookies) == 0 {
+				t.Fatal("want >0, got 0")
+			} else if !c && len(cookies) > 0 {
+				t.Fatal("want 0, got >0")
 			}
 
 			if !c {
 				return
 			}
 
-			if cookies[0].Value != "" || !cookies[0].Expires.Before(time.Now()) {
-				t.Error("response cookie is invalid")
+			if cookies[0].Value != "" {
+				t.Errorf("want %q, got %q", "", cookies[0].Value)
+			}
+
+			if !cookies[0].Expires.Before(time.Now()) {
+				t.Errorf("want %s, got %v", "<now", cookies[0].Expires)
 			}
 		}
 	}
@@ -434,11 +465,11 @@ func TestRevoke(t *testing.T) {
 		return func(t *testing.T, s *StoreMock, _ *httptest.ResponseRecorder, _ error) {
 			ff := s.DeleteByIDCalls()
 			if len(ff) != count {
-				t.Error("DeleteByID calls count is invalid")
+				t.Errorf("want %d, got %d", count, len(ff))
 			}
 
 			if len(ff) > 0 && ff[0].ID != id {
-				t.Error("DeleteByID id argument is invalid")
+				t.Errorf("want %q, got %q", id, ff[0].ID)
 			}
 		}
 	}
@@ -509,8 +540,10 @@ func TestRevokeOther(t *testing.T) {
 
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, err error) {
-			if e && err == nil || !e && err != nil {
-				t.Error("error is invalid")
+			if e && err == nil {
+				t.Errorf("want non-nil, got nil")
+			} else if !e && err != nil {
+				t.Errorf("want nil, got non-nil")
 			}
 		}
 	}
@@ -519,7 +552,7 @@ func TestRevokeOther(t *testing.T) {
 		return func(t *testing.T, s *StoreMock, _ error) {
 			ff := s.DeleteByUserKeyCalls()
 			if len(ff) != count {
-				t.Error("DeleteByUserKey calls count is invalid")
+				t.Errorf("want %d, got %d", count, len(ff))
 			}
 
 			if len(ff) == 0 {
@@ -527,11 +560,13 @@ func TestRevokeOther(t *testing.T) {
 			}
 
 			if ff[0].Key != key {
-				t.Error("DeleteByUserKey key argument is invalid")
+				t.Errorf("want %q, got %q", key, ff[0].Key)
 			}
 
-			if len(ff[0].ExpID) == 0 || ff[0].ExpID[0] != expID {
-				t.Error("DeleteByUserKey expID argument is invalid")
+			if len(ff[0].ExpID) == 0 {
+				t.Error("want >0, got 0")
+			} else if ff[0].ExpID[0] != expID {
+				t.Errorf("want %q, got %q", expID, ff[0].ExpID[0])
 			}
 		}
 	}
@@ -590,8 +625,10 @@ func TestRevokeAll(t *testing.T) {
 
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, _ *httptest.ResponseRecorder, err error) {
-			if e && err == nil || !e && err != nil {
-				t.Error("error is invalid")
+			if e && err == nil {
+				t.Errorf("want non-nil, got nil")
+			} else if !e && err != nil {
+				t.Errorf("want nil, got non-nil")
 			}
 		}
 	}
@@ -599,16 +636,22 @@ func TestRevokeAll(t *testing.T) {
 	hasCookie := func(c bool) check {
 		return func(t *testing.T, _ *StoreMock, rec *httptest.ResponseRecorder, _ error) {
 			cookies := rec.Result().Cookies()
-			if c && len(cookies) == 0 || !c && len(cookies) > 0 {
-				t.Fatal("response cookies count is invalid")
+			if c && len(cookies) == 0 {
+				t.Fatal("want >0, got 0")
+			} else if !c && len(cookies) > 0 {
+				t.Fatal("want 0, got >0")
 			}
 
 			if !c {
 				return
 			}
 
-			if cookies[0].Value != "" || !cookies[0].Expires.Before(time.Now()) {
-				t.Error("response cookie is invalid")
+			if cookies[0].Value != "" {
+				t.Errorf("want %q, got %q", "", cookies[0].Value)
+			}
+
+			if !cookies[0].Expires.Before(time.Now()) {
+				t.Errorf("want %s, got %v", "<now", cookies[0].Expires)
 			}
 		}
 	}
@@ -617,7 +660,7 @@ func TestRevokeAll(t *testing.T) {
 		return func(t *testing.T, s *StoreMock, _ *httptest.ResponseRecorder, _ error) {
 			ff := s.DeleteByUserKeyCalls()
 			if len(ff) != count {
-				t.Error("DeleteByUserKey calls count is invalid")
+				t.Errorf("want %d, got %d", count, len(ff))
 			}
 
 			if len(ff) == 0 {
@@ -625,7 +668,7 @@ func TestRevokeAll(t *testing.T) {
 			}
 
 			if ff[0].Key != key {
-				t.Error("DeleteByUserKey key argument is invalid")
+				t.Errorf("want %q, got %q", key, ff[0].Key)
 			}
 		}
 	}
@@ -684,8 +727,10 @@ func TestFetchAll(t *testing.T) {
 
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, _ []Session, err error) {
-			if e && err == nil || !e && err != nil {
-				t.Error("error is invalid")
+			if e && err == nil {
+				t.Errorf("want non-nil, got nil")
+			} else if !e && err != nil {
+				t.Errorf("want nil, got non-nil")
 			}
 		}
 	}
@@ -705,7 +750,7 @@ func TestFetchAll(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(exp1, ss) {
-				t.Error("sessions slice is invalid")
+				t.Errorf("want %v, got %v", exp1, ss)
 			}
 		}
 	}
@@ -714,7 +759,7 @@ func TestFetchAll(t *testing.T) {
 		return func(t *testing.T, s *StoreMock, _ []Session, _ error) {
 			ff := s.FetchByUserKeyCalls()
 			if len(ff) != count {
-				t.Error("FetchByUserKey calls count is invalid")
+				t.Errorf("want %d, got %d", count, len(ff))
 			}
 
 			if len(ff) == 0 {
@@ -722,7 +767,7 @@ func TestFetchAll(t *testing.T) {
 			}
 
 			if ff[0].Key != key {
-				t.Error("FetchByUserKey key argument is invalid")
+				t.Errorf("want %q, got %q", key, ff[0].Key)
 			}
 		}
 	}
@@ -824,8 +869,12 @@ func TestCreateCookie(t *testing.T) {
 	m.createCookie(rec, exp.Expires, exp.Value)
 
 	cookies := rec.Result().Cookies()
-	if len(cookies) != 1 && exp.String() != cookies[0].String() {
-		t.Error("cookie data is invalid")
+	if len(cookies) != 1 {
+		t.Errorf("want %d, got %d", 1, len(cookies))
+	}
+
+	if exp.String() != cookies[0].String() {
+		t.Errorf("want %s, got %s", exp.String(), cookies[0].String())
 	}
 }
 
@@ -852,11 +901,15 @@ func TestDeleteCookie(t *testing.T) {
 
 	cookies := rec.Result().Cookies()
 	if len(cookies) != 1 {
-		t.Error("cookie data is invalid")
+		t.Errorf("want %d, got %d", 1, len(cookies))
 	}
 
 	exp.Expires = cookies[0].Expires
-	if exp.String() != cookies[0].String() && !cookies[0].Expires.Before(time.Now()) {
-		t.Error("cookie data is invalid")
+	if exp.String() != cookies[0].String() {
+		t.Errorf("want %q, got %q", exp.String(), cookies[0].String())
+	}
+
+	if !cookies[0].Expires.Before(time.Now()) {
+		t.Errorf("want %s, got %v", "<now", cookies[0].Expires)
 	}
 }

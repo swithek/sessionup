@@ -10,7 +10,10 @@ import (
 	"github.com/dchest/uniuri"
 )
 
-const defaultName = "sessionup"
+const (
+	defaultName = "sessionup"
+	idLen       = 30
+)
 
 // Manager holds the data needed to properly create sessions
 // and set them in http responses, extract them from http requests,
@@ -91,7 +94,7 @@ func SameSite(s http.SameSite) setter {
 
 // ExpiresIn sets the duration which will be used to calculate the value
 // of 'Expires' attribute on the session cookie.
-// If unset, 'Expires' attribute will be omitted.
+// If unset, 'Expires' attribute will be omitted during cookie creation.
 // By default it is not set.
 // More about Expires at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Session_cookies
 func ExpiresIn(e time.Duration) setter {
@@ -102,6 +105,7 @@ func ExpiresIn(e time.Duration) setter {
 
 // WithIP sets whether IP should be extracted
 // from the request or not.
+// Defaults to true.
 func WithIP(w bool) setter {
 	return func(m *Manager) {
 		m.withIP = w
@@ -110,6 +114,7 @@ func WithIP(w bool) setter {
 
 // WithAgent sets whether User-Agent data should
 // be extracted from the request or not.
+// Defaults to true.
 func WithAgent(w bool) setter {
 	return func(m *Manager) {
 		m.withAgent = w
@@ -118,6 +123,8 @@ func WithAgent(w bool) setter {
 
 // GenID sets the function which will be called when a new session
 // is created and ID is being generated.
+// By default internal random string, which will have length specified
+// in idLen, generator will be used.
 func GenID(g func() string) setter {
 	return func(m *Manager) {
 		m.genID = g
@@ -126,6 +133,8 @@ func GenID(g func() string) setter {
 
 // Reject sets the function which will be called on error in Auth
 // middleware.
+// By default internal handler will be used, which returns 401 status
+// code and error message in JSON body.
 func Reject(r func(error) http.Handler) setter {
 	return func(m *Manager) {
 		m.reject = r
@@ -173,7 +182,7 @@ func rejector(err error) http.Handler {
 // idGenerator is the default ID generation function called during
 // session creation.
 func idGenerator() string {
-	return uniuri.NewLen(uniuri.UUIDLen)
+	return uniuri.NewLen(idLen)
 }
 
 // Clone copies the manager to its fresh copy and applies provided
@@ -188,12 +197,14 @@ func (m *Manager) Clone(opts ...setter) *Manager {
 	return cm
 }
 
-// Init creates a fresh session, inserts it in the store and sets the proper values
-// of the cookie.
+// Init creates a fresh session with the provided user key, inserts it in
+// the store and sets the proper values of the cookie.
 func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string) error {
 	s := m.newSession(r, key)
-	if err := m.store.Create(r.Context(), s); err != nil {
-		return err
+	if s.Expires.After(time.Time{}) {
+		if err := m.store.Create(r.Context(), s); err != nil {
+			return err
+		}
 	}
 
 	m.createCookie(w, s.Expires, s.ID)

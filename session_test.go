@@ -25,6 +25,7 @@ func TestNewSession(t *testing.T) {
 	req.RemoteAddr = "127.0.0.1:3000"
 
 	key := "key"
+	browser := "Firefox"
 
 	cc := map[string]struct {
 		Manager Manager
@@ -41,7 +42,7 @@ func TestNewSession(t *testing.T) {
 			}(),
 			Req:     req,
 			OS:      useragent.OSLinux,
-			Browser: "Firefox",
+			Browser: browser,
 		},
 		"Session created without user agent data": {
 			Manager: func() Manager {
@@ -66,7 +67,7 @@ func TestNewSession(t *testing.T) {
 			Req:     req,
 			IP:      net.ParseIP("127.0.0.1"),
 			OS:      useragent.OSLinux,
-			Browser: "Firefox",
+			Browser: browser,
 		},
 	}
 
@@ -76,35 +77,41 @@ func TestNewSession(t *testing.T) {
 			t.Parallel()
 			s := c.Manager.newSession(c.Req, key)
 			if !s.Expires.After(time.Now()) {
-				t.Error("new session has invalid expires field")
+				t.Errorf("want %s, got %v", ">now", s.Expires)
 			}
 
 			if s.ID == "" {
-				t.Error("new session has invalid ID field")
+				t.Errorf("want %q, got %v", "non empty", s.ID)
 			}
 
 			if s.UserKey != key {
-				t.Error("new session has invalid user key field")
+				t.Errorf("want %q, got %q", key, s.UserKey)
 			}
 
 			if c.OS != s.Agent.OS {
-				t.Error("new session has invalid OS field")
+				t.Errorf("want %q, got %q", c.OS, s.Agent.OS)
 			}
 
 			if c.Browser != s.Agent.Browser {
-				t.Error("new session has invalid browser field")
+				t.Errorf("want %q, got %q", c.Browser, s.Agent.Browser)
 			}
 
 			if !reflect.DeepEqual(c.IP, s.IP) {
-				t.Error("new session has invalid IP field")
+				t.Errorf("want %v, got %v", c.IP, s.IP)
 			}
 		})
 	}
 }
 
 func TestPrepExpires(t *testing.T) {
-	if !prepExpires(0).IsZero() || !prepExpires(time.Hour).After(time.Now()) {
-		t.Error("produced expiration time is invalid")
+	exp := prepExpires(0)
+	if !exp.IsZero() {
+		t.Errorf("want %v, got %v", time.Time{}, exp)
+	}
+
+	exp = prepExpires(time.Hour)
+	if !exp.After(time.Now()) {
+		t.Errorf("want %s, got %v", ">now", exp)
 	}
 }
 
@@ -112,14 +119,16 @@ func TestReadIP(t *testing.T) {
 	ip := net.ParseIP("127.0.0.1")
 	req := httptest.NewRequest("GET", "http://example.com/", nil)
 	req.Header.Set("X-Forwarded-For", "127.0.0.2, 127.0.0.1")
-	if !reflect.DeepEqual(ip, readIP(req)) {
-		t.Error("invalid IP from X-Forwarded-For header")
+	ip1 := readIP(req)
+	if !reflect.DeepEqual(ip, ip1) {
+		t.Errorf("want %v, got %v", ip, ip1)
 	}
 
 	req.Header.Del("X-Forwarded-For")
 	req.RemoteAddr = "127.0.0.1:3000"
-	if !reflect.DeepEqual(ip, readIP(req)) {
-		t.Error("invalid IP from request.RemoteAddr")
+	ip1 = readIP(req)
+	if !reflect.DeepEqual(ip, ip1) {
+		t.Errorf("want %v, got %v", ip, ip1)
 	}
 }
 
@@ -128,8 +137,11 @@ func TestNewContext(t *testing.T) {
 	ctx := newContext(context.Background(), s)
 
 	cs, ok := ctx.Value(sessionKey).(Session)
-	if !ok || !reflect.DeepEqual(s, cs) {
-		t.Error("invalid session stored in the context")
+	if !ok {
+		t.Errorf("want %t, got %t", true, ok)
+	}
+	if !reflect.DeepEqual(s, cs) {
+		t.Errorf("want %v, got %v", s, cs)
 	}
 }
 
@@ -138,7 +150,10 @@ func TestFromContext(t *testing.T) {
 	ctx := context.WithValue(context.Background(), sessionKey, s)
 
 	cs, ok := FromContext(ctx)
-	if !ok || !reflect.DeepEqual(s, cs) {
-		t.Error("invalid session retrieved from the context")
+	if !ok {
+		t.Errorf("want %t, got %t", true, ok)
+	}
+	if !reflect.DeepEqual(s, cs) {
+		t.Errorf("want %v, got %v", s, cs)
 	}
 }

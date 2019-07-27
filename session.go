@@ -51,16 +51,16 @@ func (m *Manager) newSession(r *http.Request, key string) Session {
 		UserKey: key,
 	}
 
+	if m.withIP {
+		s.IP = readIP(r)
+	}
+
 	if m.withAgent {
 		a := useragent.Parse(r.Header.Get("User-Agent"))
 		if a != nil {
 			s.Agent.OS = a.OS
 			s.Agent.Browser = a.Name
 		}
-	}
-
-	if m.withIP {
-		s.IP = readIP(r)
 	}
 
 	return s

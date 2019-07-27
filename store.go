@@ -6,6 +6,8 @@ import (
 )
 
 var (
+	// ErrDuplicateID should be returned by Store implementations upon
+	// ID collision.
 	ErrDuplicateID = errors.New("duplicate ID")
 )
 
@@ -15,7 +17,7 @@ var (
 type Store interface {
 	// Create should insert the new provided session into the store and ensure
 	// that it is deleted when expiration time due.
-	// Error should be returned on id collission or other system errors.
+	// Error should be returned on ID collision or other system errors.
 	Create(ctx context.Context, s Session) error
 
 	// FetchByID should retrieve the session from the store by the provided ID.
