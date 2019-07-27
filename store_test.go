@@ -26,7 +26,7 @@ var _ Store = &StoreMock{}
 //
 //         // make and configure a mocked Store
 //         mockedStore := &StoreMock{
-//             CreateFunc: func(ctx context.Context, ses Session) error {
+//             CreateFunc: func(ctx context.Context, s Session) error {
 // 	               panic("mock out the Create method")
 //             },
 //             DeleteByIDFunc: func(ctx context.Context, id string) error {
@@ -49,7 +49,7 @@ var _ Store = &StoreMock{}
 //     }
 type StoreMock struct {
 	// CreateFunc mocks the Create method.
-	CreateFunc func(ctx context.Context, ses Session) error
+	CreateFunc func(ctx context.Context, s Session) error
 
 	// DeleteByIDFunc mocks the DeleteByID method.
 	DeleteByIDFunc func(ctx context.Context, id string) error
@@ -69,8 +69,8 @@ type StoreMock struct {
 		Create []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// Ses is the ses argument value.
-			Ses Session
+			// S is the s argument value.
+			S Session
 		}
 		// DeleteByID holds details about calls to the DeleteByID method.
 		DeleteByID []struct {
@@ -106,21 +106,21 @@ type StoreMock struct {
 }
 
 // Create calls CreateFunc.
-func (mock *StoreMock) Create(ctx context.Context, ses Session) error {
+func (mock *StoreMock) Create(ctx context.Context, s Session) error {
 	if mock.CreateFunc == nil {
 		panic("StoreMock.CreateFunc: method is nil but Store.Create was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
-		Ses Session
+		S   Session
 	}{
 		Ctx: ctx,
-		Ses: ses,
+		S:   s,
 	}
 	lockStoreMockCreate.Lock()
 	mock.calls.Create = append(mock.calls.Create, callInfo)
 	lockStoreMockCreate.Unlock()
-	return mock.CreateFunc(ctx, ses)
+	return mock.CreateFunc(ctx, s)
 }
 
 // CreateCalls gets all the calls that were made to Create.
@@ -128,11 +128,11 @@ func (mock *StoreMock) Create(ctx context.Context, ses Session) error {
 //     len(mockedStore.CreateCalls())
 func (mock *StoreMock) CreateCalls() []struct {
 	Ctx context.Context
-	Ses Session
+	S   Session
 } {
 	var calls []struct {
 		Ctx context.Context
-		Ses Session
+		S   Session
 	}
 	lockStoreMockCreate.RLock()
 	calls = mock.calls.Create

@@ -1,6 +1,13 @@
 package sessionup
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var (
+	ErrDuplicateID = errors.New("duplicate ID")
+)
 
 // Store provides an easy access to the underlying data store, without
 // exposing any of its internal logic and implementing the mandatory
@@ -9,7 +16,7 @@ type Store interface {
 	// Create should insert the new provided session into the store and ensure
 	// that it is deleted when expiration time due.
 	// Error should be returned on id collission or other system errors.
-	Create(ctx context.Context, ses Session) error
+	Create(ctx context.Context, s Session) error
 
 	// FetchByID should retrieve the session from the store by the provided ID.
 	// The second returned value indicates whether the session was found or not

@@ -228,7 +228,7 @@ func TestInit(t *testing.T) {
 				t.Error("Create calls count is invalid")
 			}
 
-			if len(ff) > 0 && ff[0].Ses.UserKey != key {
+			if len(ff) > 0 && ff[0].S.UserKey != key {
 				t.Error("Create session argument is invalid")
 			}
 		}
