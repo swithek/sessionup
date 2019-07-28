@@ -17,10 +17,14 @@ type Session struct {
 	// NOTE: this field should not be stored in the store.
 	Current bool `json:"current"`
 
-	// Expires epecifies a point in time when this
+	// CreatedAt specifies a point in time when this session
+	// was created.
+	CreatedAt time.Time `json:"created_at"`
+
+	// ExpiresAt specifies a point in time when this
 	// session should become invalid and be deleted
 	// from the store.
-	Expires time.Time `json:"-"`
+	ExpiresAt time.Time `json:"-"`
 
 	// ID specifies a unique ID used to find this session
 	// in the store.
@@ -30,7 +34,7 @@ type Session struct {
 	// sessions of the same user.
 	UserKey string `json:"-"`
 
-	// IP specifies the IP address that was used to create
+	// IP specifies the client IP address that was used to create
 	// this session
 	IP net.IP `json:"ip"`
 
@@ -46,9 +50,10 @@ type Session struct {
 // the provided request, user key and a freshly generated ID.
 func (m *Manager) newSession(r *http.Request, key string) Session {
 	s := Session{
-		Expires: prepExpires(m.expiresIn),
-		ID:      m.genID(),
-		UserKey: key,
+		CreatedAt: time.Now(),
+		ExpiresAt: prepExpiresAt(m.expiresIn),
+		ID:        m.genID(),
+		UserKey:   key,
 	}
 
 	if m.withIP {
@@ -66,9 +71,9 @@ func (m *Manager) newSession(r *http.Request, key string) Session {
 	return s
 }
 
-// prepExpires produces a correct value of expiration time
+// prepExpiresAt produces a correct value of expiration time
 // used by sessions.
-func prepExpires(d time.Duration) time.Time {
+func prepExpiresAt(d time.Duration) time.Time {
 	if d == 0 {
 		return time.Time{}
 	}

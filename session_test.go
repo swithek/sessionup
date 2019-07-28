@@ -76,8 +76,12 @@ func TestNewSession(t *testing.T) {
 		t.Run(cn, func(t *testing.T) {
 			t.Parallel()
 			s := c.Manager.newSession(c.Req, key)
-			if !s.Expires.After(time.Now()) {
-				t.Errorf("want %s, got %v", ">now", s.Expires)
+			if s.CreatedAt.IsZero() {
+				t.Errorf("want %s, got %v", ">0", s.CreatedAt)
+			}
+
+			if !s.ExpiresAt.After(time.Now()) {
+				t.Errorf("want %s, got %v", ">now", s.ExpiresAt)
 			}
 
 			if s.ID == "" {
@@ -103,13 +107,13 @@ func TestNewSession(t *testing.T) {
 	}
 }
 
-func TestPrepExpires(t *testing.T) {
-	exp := prepExpires(0)
+func TestPrepExpiresAt(t *testing.T) {
+	exp := prepExpiresAt(0)
 	if !exp.IsZero() {
 		t.Errorf("want %v, got %v", time.Time{}, exp)
 	}
 
-	exp = prepExpires(time.Hour)
+	exp = prepExpiresAt(time.Hour)
 	if !exp.After(time.Now()) {
 		t.Errorf("want %s, got %v", ">now", exp)
 	}

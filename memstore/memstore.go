@@ -54,7 +54,7 @@ func (m *MemStore) FetchByID(_ context.Context, id string) (sessionup.Session, b
 	m.mu.RLock()
 	s, ok := m.sessions[id]
 	m.mu.RUnlock()
-	if ok && !s.Expires.After(time.Now()) {
+	if ok && !s.ExpiresAt.After(time.Now()) {
 		return sessionup.Session{}, false, nil
 	}
 	return s, ok, nil
@@ -67,7 +67,7 @@ func (m *MemStore) FetchByUserKey(_ context.Context, key string) ([]sessionup.Se
 	var ss []sessionup.Session
 	for _, id := range ids {
 		s, ok := m.sessions[id]
-		if ok && s.Expires.After(time.Now()) {
+		if ok && s.ExpiresAt.After(time.Now()) {
 			ss = append(ss, s)
 		}
 	}
@@ -130,7 +130,7 @@ func (m *MemStore) deleteExpired() {
 	t := time.Now()
 	m.mu.Lock()
 	for _, s := range m.sessions {
-		if !s.Expires.After(t) {
+		if !s.ExpiresAt.After(t) {
 			m.del(s.ID, s.UserKey)
 		}
 	}

@@ -201,13 +201,13 @@ func (m *Manager) Clone(opts ...setter) *Manager {
 // the store and sets the proper values of the cookie.
 func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string) error {
 	s := m.newSession(r, key)
-	if s.Expires.After(time.Time{}) {
+	if s.ExpiresAt.After(time.Time{}) {
 		if err := m.store.Create(r.Context(), s); err != nil {
 			return err
 		}
 	}
 
-	m.createCookie(w, s.Expires, s.ID)
+	m.setCookie(w, s.ExpiresAt, s.ID)
 	return nil
 }
 
@@ -299,9 +299,9 @@ func (m *Manager) FetchAll(ctx context.Context, key string) ([]Session, error) {
 	return ss, nil
 }
 
-// createCookie creates a cookie and sets its values to the options set in the manager
-// and provided as parameters.
-func (m *Manager) createCookie(w http.ResponseWriter, exp time.Time, tok string) {
+// setCookie creates a cookie and sets its values to the options set in the manager
+// and those provided as parameters.
+func (m *Manager) setCookie(w http.ResponseWriter, exp time.Time, tok string) {
 	c := &http.Cookie{
 		Name:     m.cookie.name,
 		Value:    tok,
@@ -319,15 +319,5 @@ func (m *Manager) createCookie(w http.ResponseWriter, exp time.Time, tok string)
 // deleteCookie creates a cookie and overrides the existing one with values that
 // would require the client to delete it immediatly.
 func (m *Manager) deleteCookie(w http.ResponseWriter) {
-	c := &http.Cookie{
-		Name:     m.cookie.name,
-		Path:     m.cookie.path,
-		Domain:   m.cookie.domain,
-		Expires:  time.Now().Add(-time.Hour * 24 * 30),
-		Secure:   m.cookie.secure,
-		HttpOnly: m.cookie.httpOnly,
-		SameSite: m.cookie.sameSite,
-	}
-
-	http.SetCookie(w, c)
+	m.setCookie(w, time.Now().Add(-time.Hour*24*30), "")
 }

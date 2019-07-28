@@ -50,7 +50,7 @@ func TestCreate(t *testing.T) {
 	exp := sessionup.Session{ID: "id1", UserKey: "key"}
 	err = m.Create(context.Background(), exp)
 	if err != nil {
-		t.Errorf("want nil, got non-nil")
+		t.Errorf("want nil, got %v", err)
 	}
 
 	s, ok := m.sessions["id1"]
@@ -96,7 +96,7 @@ func TestFetchByID(t *testing.T) {
 		t.Errorf("want nil, got %v", err)
 	}
 
-	m.sessions["id"] = sessionup.Session{ID: "id", Expires: time.Now().Add(time.Hour)}
+	m.sessions["id"] = sessionup.Session{ID: "id", ExpiresAt: time.Now().Add(time.Hour)}
 	s, ok, err = m.FetchByID(context.Background(), "id")
 	if s.ID == "" {
 		t.Errorf("want %q, got %q", "", s.ID)
@@ -129,9 +129,9 @@ func TestFetchByUserKey(t *testing.T) {
 		t.Errorf("want nil, got %v", err)
 	}
 
-	m.sessions["id1"] = sessionup.Session{ID: "id1", UserKey: "key", Expires: time.Now().Add(time.Hour)}
-	m.sessions["id2"] = sessionup.Session{ID: "id2", UserKey: "key", Expires: time.Now().Add(time.Hour)}
-	m.sessions["id3"] = sessionup.Session{ID: "id3", UserKey: "key", Expires: time.Now().Add(time.Hour)}
+	m.sessions["id1"] = sessionup.Session{ID: "id1", UserKey: "key", ExpiresAt: time.Now().Add(time.Hour)}
+	m.sessions["id2"] = sessionup.Session{ID: "id2", UserKey: "key", ExpiresAt: time.Now().Add(time.Hour)}
+	m.sessions["id3"] = sessionup.Session{ID: "id3", UserKey: "key", ExpiresAt: time.Now().Add(time.Hour)}
 	ss, err = m.FetchByUserKey(context.Background(), "key")
 	if len(ss) != 3 {
 		t.Errorf("want %d, got %d", 3, len(ss))
@@ -265,7 +265,7 @@ func TestDeleteExpired(t *testing.T) {
 	m.users["key"] = []string{"id1", "id2", "id3"}
 	m.sessions["id1"] = sessionup.Session{ID: "id1", UserKey: "key"}
 	m.sessions["id2"] = sessionup.Session{ID: "id2", UserKey: "key"}
-	m.sessions["id3"] = sessionup.Session{ID: "id2", UserKey: "key", Expires: time.Now().Add(time.Hour)}
+	m.sessions["id3"] = sessionup.Session{ID: "id2", UserKey: "key", ExpiresAt: time.Now().Add(time.Hour)}
 	m.deleteExpired()
 	if len(m.sessions) != 1 {
 		t.Errorf("want %d, got %d", 1, len(m.sessions))

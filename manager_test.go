@@ -206,9 +206,9 @@ func TestInit(t *testing.T) {
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, _ *httptest.ResponseRecorder, err error) {
 			if e && err == nil {
-				t.Errorf("want non-nil, got nil")
+				t.Error("want non-nil, got nil")
 			} else if !e && err != nil {
-				t.Errorf("want nil, got non-nil")
+				t.Errorf("want nil, got %v", err)
 			}
 		}
 	}
@@ -318,7 +318,7 @@ func TestAuth(t *testing.T) {
 			}
 
 			if b && rec.Body.Len() == 0 {
-				t.Errorf("want non-empty, got empty")
+				t.Error("want non-empty, got empty")
 			}
 		}
 	}
@@ -431,9 +431,9 @@ func TestRevoke(t *testing.T) {
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, _ *httptest.ResponseRecorder, err error) {
 			if e && err == nil {
-				t.Errorf("want non-nil, got nil")
+				t.Error("want non-nil, got nil")
 			} else if !e && err != nil {
-				t.Errorf("want nil, got non-nil")
+				t.Errorf("want nil, got %v", err)
 			}
 		}
 	}
@@ -541,9 +541,9 @@ func TestRevokeOther(t *testing.T) {
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, err error) {
 			if e && err == nil {
-				t.Errorf("want non-nil, got nil")
+				t.Error("want non-nil, got nil")
 			} else if !e && err != nil {
-				t.Errorf("want nil, got non-nil")
+				t.Errorf("want nil, got %v", err)
 			}
 		}
 	}
@@ -626,9 +626,9 @@ func TestRevokeAll(t *testing.T) {
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, _ *httptest.ResponseRecorder, err error) {
 			if e && err == nil {
-				t.Errorf("want non-nil, got nil")
+				t.Error("want non-nil, got nil")
 			} else if !e && err != nil {
-				t.Errorf("want nil, got non-nil")
+				t.Errorf("want nil, got %v", err)
 			}
 		}
 	}
@@ -728,29 +728,23 @@ func TestFetchAll(t *testing.T) {
 	hasErr := func(e bool) check {
 		return func(t *testing.T, _ *StoreMock, _ []Session, err error) {
 			if e && err == nil {
-				t.Errorf("want non-nil, got nil")
+				t.Error("want non-nil, got nil")
 			} else if !e && err != nil {
-				t.Errorf("want nil, got non-nil")
+				t.Errorf("want nil, got %v", err)
 			}
 		}
 	}
 
 	hasSessions := func(exp []Session, c bool) check {
 		return func(t *testing.T, _ *StoreMock, ss []Session, _ error) {
-			var exp1 []Session
-			if exp != nil {
-				exp1 = make([]Session, len(exp))
-				copy(exp1, exp)
-			}
-
 			if exp != nil && c {
-				s := exp1[1]
+				s := exp[1]
 				s.Current = true
-				exp1[1] = s
+				exp[1] = s
 			}
 
-			if !reflect.DeepEqual(exp1, ss) {
-				t.Errorf("want %v, got %v", exp1, ss)
+			if !reflect.DeepEqual(exp, ss) {
+				t.Errorf("want %v, got %v", exp, ss)
 			}
 		}
 	}
@@ -780,12 +774,16 @@ func TestFetchAll(t *testing.T) {
 		}
 	}
 
-	var ss []Session
-	for i := 0; i < 3; i++ {
-		ss = append(ss, Session{
-			ID: fmt.Sprintf("id%d", i),
-		})
+	ss := func() []Session {
+		var res []Session
+		for i := 0; i < 3; i++ {
+			res = append(res, Session{
+				ID: fmt.Sprintf("id%d", i),
+			})
+		}
+		return res
 	}
+	curr := ss()[1]
 
 	key := "key"
 
@@ -796,7 +794,7 @@ func TestFetchAll(t *testing.T) {
 	}{
 		"Error returned by store.FetchByUserKey": {
 			Store: storeStub(nil, errors.New("error")),
-			Ctx:   newContext(context.Background(), ss[1]),
+			Ctx:   newContext(context.Background(), curr),
 			Checks: checks(
 				hasErr(true),
 				hasSessions(nil, false),
@@ -805,7 +803,7 @@ func TestFetchAll(t *testing.T) {
 		},
 		"No sessions found": {
 			Store: storeStub(nil, nil),
-			Ctx:   newContext(context.Background(), ss[1]),
+			Ctx:   newContext(context.Background(), curr),
 			Checks: checks(
 				hasErr(false),
 				hasSessions(nil, false),
@@ -813,20 +811,20 @@ func TestFetchAll(t *testing.T) {
 			),
 		},
 		"Successful fetch without current session": {
-			Store: storeStub(ss, nil),
+			Store: storeStub(ss(), nil),
 			Ctx:   context.Background(),
 			Checks: checks(
 				hasErr(false),
-				hasSessions(ss, false),
+				hasSessions(ss(), false),
 				wasFetchByUserKeyCalled(1, key),
 			),
 		},
 		"Successful fetch": {
-			Store: storeStub(ss, nil),
-			Ctx:   newContext(context.Background(), ss[1]),
+			Store: storeStub(ss(), nil),
+			Ctx:   newContext(context.Background(), curr),
 			Checks: checks(
 				hasErr(false),
-				hasSessions(ss, true),
+				hasSessions(ss(), true),
 				wasFetchByUserKeyCalled(1, key),
 			),
 		},
@@ -845,7 +843,7 @@ func TestFetchAll(t *testing.T) {
 	}
 }
 
-func TestCreateCookie(t *testing.T) {
+func TestSetCookie(t *testing.T) {
 	exp := http.Cookie{
 		Name:     defaultName,
 		Value:    "id",
@@ -866,7 +864,7 @@ func TestCreateCookie(t *testing.T) {
 	m.cookie.sameSite = exp.SameSite
 
 	rec := httptest.NewRecorder()
-	m.createCookie(rec, exp.Expires, exp.Value)
+	m.setCookie(rec, exp.Expires, exp.Value)
 
 	cookies := rec.Result().Cookies()
 	if len(cookies) != 1 {
