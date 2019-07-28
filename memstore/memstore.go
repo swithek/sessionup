@@ -93,14 +93,20 @@ func (m *MemStore) DeleteByID(_ context.Context, id string) error {
 func (m *MemStore) DeleteByUserKey(_ context.Context, key string, expID ...string) error {
 	m.mu.Lock()
 	ids := m.users[key]
+	var bin []string
 outer:
 	for _, id := range ids {
-		for _, eid := range expID {
+		for i, eid := range expID {
 			if eid == id {
+				expID = append(expID[:i], expID[i+1:]...)
 				continue outer
 			}
 		}
-		m.del(id, key)
+		bin = append(bin, id)
+	}
+
+	for _, v := range bin {
+		m.del(v, key)
 	}
 
 	m.mu.Unlock()

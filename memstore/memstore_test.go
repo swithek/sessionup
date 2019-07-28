@@ -191,12 +191,12 @@ func TestDeleteByUserKey(t *testing.T) {
 	m.sessions["id3"] = sessionup.Session{ID: "id3", UserKey: "key"}
 	m.sessions["id4"] = sessionup.Session{ID: "id3", UserKey: "key123"}
 
-	err := m.DeleteByUserKey(context.Background(), "key", "id1")
+	err := m.DeleteByUserKey(context.Background(), "key", "id3")
 	if err != nil {
 		t.Errorf("want nil, got %v", err)
 	}
 
-	_, ok := m.sessions["id1"]
+	_, ok := m.sessions["id3"]
 	if !ok {
 		t.Errorf("want %t, got %t", true, ok)
 	}
@@ -213,7 +213,7 @@ func TestDeleteByUserKey(t *testing.T) {
 		t.Error("error is invalid")
 	}
 
-	_, ok = m.sessions["id1"]
+	_, ok = m.sessions["id3"]
 	if ok {
 		t.Errorf("want %t, got %t", false, ok)
 	}

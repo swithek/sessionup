@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultName = "sessionup"
-	idLen       = 30
+	idLen       = 40
 )
 
 // Manager holds the data needed to properly create sessions
@@ -173,7 +173,7 @@ func DefaultGenID() string {
 }
 
 // DefaultReject is the default rejection function called on error.
-// It produces a responses consisting of 401 status code and a JSON
+// It produces a response consisting of 401 status code and a JSON
 // body with 'error' field.
 func DefaultReject(err error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -211,25 +211,49 @@ func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string) error
 	return nil
 }
 
-// Auth is a middleware used to authenticate the incoming request by extracting
-// session ID from the cookie and checking its existence in the store.
+// Public wraps the provided handler, checks whether the session, associated to
+// the ID stored in request's cookie, exists in the store and adds it to the
+// request's context.
+// If no valid cookie is provided, session doesn't exist or the store returns
+// an error, wrapped handler will be activated nonetheless.
+// Rejection function will be called only for non-http side effects (like error logging),
+// but response/request control will not be passed to it.
+func (m *Manager) Public(next http.Handler) http.Handler {
+	return m.wrap(func(err error) http.Handler {
+		m.reject(err) // called only for potential logging and other custom, non-http logic
+		return next
+	}, next)
+}
+
+// Auth wraps the provided handler, checks whether the session, associated to
+// the ID stored in request's cookie, exists in the store and adds it to the
+// request's context.
+// Wrapped handler will be activated only if there are no errors returned from the store
+// and the session is found, otherwise, the manager's rejection function will be called.
 func (m *Manager) Auth(next http.Handler) http.Handler {
+	return m.wrap(m.reject, next)
+}
+
+// wrap extracts cookie data from the incoming request and checks session existence in
+// the store. If no errors occur, response/request data will be passed to the wrapped
+// handler, otherwise, provided rejection function will be used.
+func (m *Manager) wrap(rej func(error) http.Handler, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(m.cookie.name)
 		if err != nil {
-			m.reject(err).ServeHTTP(w, r)
+			rej(err).ServeHTTP(w, r)
 			return
 		}
 
 		ctx := r.Context()
 		s, ok, err := m.store.FetchByID(ctx, c.Value)
 		if err != nil {
-			m.reject(err).ServeHTTP(w, r)
+			rej(err).ServeHTTP(w, r)
 			return
 		}
 
 		if !ok {
-			m.reject(errors.New("unauthorized")).ServeHTTP(w, r)
+			rej(errors.New("unauthorized")).ServeHTTP(w, r)
 			return
 		}
 
@@ -239,6 +263,7 @@ func (m *Manager) Auth(next http.Handler) http.Handler {
 
 // Revoke deletes the current session, stored in the context, from the store
 // and ensures cookie deletion.
+// Function will be no-op and return nil, if context session is not set.
 func (m *Manager) Revoke(ctx context.Context, w http.ResponseWriter) error {
 	s, ok := FromContext(ctx)
 	if !ok {
@@ -253,17 +278,28 @@ func (m *Manager) Revoke(ctx context.Context, w http.ResponseWriter) error {
 	return nil
 }
 
-// RevokeOther deletes all sessions of the same user key except the current session,
-// stored in the context.
-func (m *Manager) RevokeOther(ctx context.Context, key string) error {
-	s, _ := FromContext(ctx)
-	return m.store.DeleteByUserKey(ctx, key, s.ID)
+// RevokeOther deletes all sessions of the same user key as session stored in the
+// context currently has. Context session will be excluded.
+// Function will be no-op and return nil, if context session is not set.
+func (m *Manager) RevokeOther(ctx context.Context) error {
+	s, ok := FromContext(ctx)
+	if !ok {
+		return nil
+	}
+
+	return m.store.DeleteByUserKey(ctx, s.UserKey, s.ID)
 }
 
-// RevokeAll deletes all sessions of the same user key, including the one stored in the
-// context, and ensures cookie deletion.
-func (m *Manager) RevokeAll(ctx context.Context, w http.ResponseWriter, key string) error {
-	if err := m.store.DeleteByUserKey(ctx, key); err != nil {
+// RevokeAll deletes all sessions of the same user key as session stored in the
+// context currently has. This includes context session as well.
+// Function will be no-op and return nil, if context session is not set.
+func (m *Manager) RevokeAll(ctx context.Context, w http.ResponseWriter) error {
+	s, ok := FromContext(ctx)
+	if !ok {
+		return nil
+	}
+
+	if err := m.store.DeleteByUserKey(ctx, s.UserKey); err != nil {
 		return err
 	}
 
@@ -271,11 +307,17 @@ func (m *Manager) RevokeAll(ctx context.Context, w http.ResponseWriter, key stri
 	return nil
 }
 
-// FetchAll retrieves all sessions of the same user key, including the one stored in the
-// context. Session with the same ID as the one stored in the context will have its 'Current'
-// field set to true. If no sessions are found, both return values will be nil.
-func (m *Manager) FetchAll(ctx context.Context, key string) ([]Session, error) {
-	ss, err := m.store.FetchByUserKey(ctx, key)
+// FetchAll retrieves all sessions of the same user key as session stored in the
+// context currently has. Session with the same ID as the one stored in the context
+// will have its 'Current' field set to true. If no sessions are found or the context
+// session is not set, both return values will be nil.
+func (m *Manager) FetchAll(ctx context.Context) ([]Session, error) {
+	cs, ok := FromContext(ctx)
+	if !ok {
+		return nil, nil
+	}
+
+	ss, err := m.store.FetchByUserKey(ctx, cs.UserKey)
 	if err != nil {
 		return nil, err
 	}
@@ -284,17 +326,13 @@ func (m *Manager) FetchAll(ctx context.Context, key string) ([]Session, error) {
 		return nil, nil
 	}
 
-	cs, ok := FromContext(ctx)
-	if !ok {
-		return ss, nil
-	}
-
 	for i, s := range ss {
+		// ensure that only the real current session is marked as such
+		s.Current = false
 		if s.ID == cs.ID {
 			s.Current = true
-			ss[i] = s
-			break
 		}
+		ss[i] = s
 	}
 	return ss, nil
 }
@@ -319,5 +357,5 @@ func (m *Manager) setCookie(w http.ResponseWriter, exp time.Time, tok string) {
 // deleteCookie creates a cookie and overrides the existing one with values that
 // would require the client to delete it immediatly.
 func (m *Manager) deleteCookie(w http.ResponseWriter) {
-	m.setCookie(w, time.Now().Add(-time.Hour*24*30), "")
+	m.setCookie(w, time.Unix(1, 0), "")
 }

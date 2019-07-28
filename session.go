@@ -14,7 +14,9 @@ import (
 type Session struct {
 	// Current specifies whether this session's ID
 	// matches the ID stored in the request's cookie.
-	// NOTE: this field should not be stored in the store.
+	// NOTE: this field should be omitted by Store interface
+	// implementations when inserting session into the underlying
+	// data store.
 	Current bool `json:"current"`
 
 	// CreatedAt specifies a point in time when this session

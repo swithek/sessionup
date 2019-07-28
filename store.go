@@ -37,7 +37,8 @@ type Store interface {
 	DeleteByID(ctx context.Context, id string) error
 
 	// DeleteByUserKey should delete all sessions associated with the provided
-	// user key. If none are found, this function should be no-op and return nil.
+	// user key, except those whose IDs are provided as the last argument.
+	// If none are found, this function should be no-op and return nil.
 	// Error should be returned on system errors only.
 	DeleteByUserKey(ctx context.Context, key string, expID ...string) error
 }
