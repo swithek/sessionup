@@ -17,7 +17,7 @@ func TestNewSession(t *testing.T) {
 		expiresIn: time.Hour,
 		withAgent: true,
 		withIP:    true,
-		genID:     idGenerator,
+		genID:     DefaultGenID,
 	}
 
 	req := httptest.NewRequest("GET", "http://example.com/", nil)

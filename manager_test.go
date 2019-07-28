@@ -156,14 +156,14 @@ func TestDefaults(t *testing.T) {
 	}
 }
 
-func TestRejector(t *testing.T) {
+func TestDefaultReject(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "http://example.com", nil)
 	res, _ := json.Marshal(struct {
 		Error string `json:"error"`
 	}{Error: "major problem"})
 
-	rejector(errors.New("major problem")).ServeHTTP(rec, req)
+	DefaultReject(errors.New("major problem")).ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("want %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
@@ -178,8 +178,8 @@ func TestRejector(t *testing.T) {
 	}
 }
 
-func TestIDGenerator(t *testing.T) {
-	id := idGenerator()
+func TestDefaultGenID(t *testing.T) {
+	id := DefaultGenID()
 	if len(id) != idLen {
 		t.Errorf("want %d, got %d", idLen, len(id))
 	}

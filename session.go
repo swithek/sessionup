@@ -30,11 +30,11 @@ type Session struct {
 	// in the store.
 	ID string `json:"id"`
 
-	// UserKey specifies the non-unique key used to find all
+	// UserKey specifies a non-unique key used to find all
 	// sessions of the same user.
 	UserKey string `json:"-"`
 
-	// IP specifies the client IP address that was used to create
+	// IP specifies an IP address that was used to create
 	// this session
 	IP net.IP `json:"ip"`
 

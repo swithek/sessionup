@@ -123,8 +123,7 @@ func WithAgent(w bool) setter {
 
 // GenID sets the function which will be called when a new session
 // is created and ID is being generated.
-// By default internal random string, which will have length specified
-// in idLen, generator will be used.
+// Defaults to DefaultGenID function.
 func GenID(g func() string) setter {
 	return func(m *Manager) {
 		m.genID = g
@@ -133,8 +132,7 @@ func GenID(g func() string) setter {
 
 // Reject sets the function which will be called on error in Auth
 // middleware.
-// By default internal handler will be used, which returns 401 status
-// code and error message in JSON body.
+// Defaults to DefaultReject function.
 func Reject(r func(error) http.Handler) setter {
 	return func(m *Manager) {
 		m.reject = r
@@ -164,12 +162,20 @@ func (m *Manager) Defaults() {
 	m.cookie.sameSite = http.SameSiteStrictMode
 	m.withIP = true
 	m.withAgent = true
-	m.genID = idGenerator
-	m.reject = rejector
+	m.genID = DefaultGenID
+	m.reject = DefaultReject
 }
 
-// rejector is the default rejection function called on error.
-func rejector(err error) http.Handler {
+// DefaultGenID is the default ID generation function called during
+// session creation.
+func DefaultGenID() string {
+	return uniuri.NewLen(idLen)
+}
+
+// DefaultReject is the default rejection function called on error.
+// It produces a responses consisting of 401 status code and a JSON
+// body with 'error' field.
+func DefaultReject(err error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -177,12 +183,6 @@ func rejector(err error) http.Handler {
 			Error string `json:"error"`
 		}{Error: err.Error()})
 	})
-}
-
-// idGenerator is the default ID generation function called during
-// session creation.
-func idGenerator() string {
-	return uniuri.NewLen(idLen)
 }
 
 // Clone copies the manager to its fresh copy and applies provided
@@ -273,7 +273,7 @@ func (m *Manager) RevokeAll(ctx context.Context, w http.ResponseWriter, key stri
 
 // FetchAll retrieves all sessions of the same user key, including the one stored in the
 // context. Session with the same ID as the one stored in the context will have its 'Current'
-// field set to true. If no session are found, both return values will be nil.
+// field set to true. If no sessions are found, both return values will be nil.
 func (m *Manager) FetchAll(ctx context.Context, key string) ([]Session, error) {
 	ss, err := m.store.FetchByUserKey(ctx, key)
 	if err != nil {
