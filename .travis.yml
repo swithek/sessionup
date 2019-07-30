@@ -1,6 +1,6 @@
-language go
+language: go
 
 go:
 - 1.12.x
 
-script: go test ./...
+script: go test -v ./...
