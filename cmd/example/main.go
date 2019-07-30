@@ -4,9 +4,10 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"sessionup"
-	"sessionup/memstore"
 	"time"
+
+	"github.com/swithek/sessionup"
+	"github.com/swithek/sessionup/memstore"
 )
 
 var users = map[string]struct{}{}
