@@ -12,7 +12,7 @@ var (
 )
 
 // Store provides an easy access to the underlying data store, without
-// exposing any of its internal logic and implementing the mandatory
+// exposing any of its internal logic, but providing all the mandatory
 // methods accordingly.
 type Store interface {
 	// Create should insert the new provided session into the store and ensure

@@ -355,7 +355,7 @@ func (m *Manager) setCookie(w http.ResponseWriter, exp time.Time, tok string) {
 }
 
 // deleteCookie creates a cookie and overrides the existing one with values that
-// would require the client to delete it immediatly.
+// would require the client to delete it immediately.
 func (m *Manager) deleteCookie(w http.ResponseWriter) {
 	m.setCookie(w, time.Unix(1, 0), "")
 }

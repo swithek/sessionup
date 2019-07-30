@@ -3,9 +3,10 @@ package memstore
 import (
 	"context"
 	"reflect"
-	"sessionup"
 	"testing"
 	"time"
+
+	"github.com/swithek/sessionup"
 )
 
 func TestNew(t *testing.T) {
@@ -19,6 +20,7 @@ func TestNew(t *testing.T) {
 	}
 
 	m = New(5 * time.Minute)
+	time.Sleep(time.Microsecond * 10)
 	if m.sessions == nil {
 		t.Error("want non-nil, got nil")
 	}
@@ -27,7 +29,7 @@ func TestNew(t *testing.T) {
 		t.Error("want non-nil, got nil")
 	}
 
-	if m.stop != nil {
+	if m.stopChan == nil {
 		t.Error("want non-nil, got nil")
 	}
 

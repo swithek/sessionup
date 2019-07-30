@@ -2,9 +2,10 @@ package memstore
 
 import (
 	"context"
-	"sessionup"
 	"sync"
 	"time"
+
+	"github.com/swithek/sessionup"
 )
 
 // MemStore is an in-memory implementation of sessionup.Store.
@@ -14,7 +15,7 @@ type MemStore struct {
 	mu       sync.RWMutex
 	sessions map[string]sessionup.Session
 	users    map[string][]string
-	stop     chan struct{}
+	stopChan chan struct{}
 }
 
 // New returns a fresh instance of MemStore.
@@ -143,17 +144,17 @@ func (m *MemStore) deleteExpired() {
 	m.mu.Unlock()
 }
 
-// startCleanup activates repeated sessions checking and
+// startCleanup activates repeated sessions' checking and
 // deletion process.
 // NOTE: should be called on a separate goroutine.
 func (m *MemStore) startCleanup(d time.Duration) {
-	m.stop = make(chan struct{})
+	m.stopChan = make(chan struct{})
 	t := time.NewTicker(d)
 	for {
 		select {
 		case <-t.C:
 			m.deleteExpired()
-		case <-m.stop:
+		case <-m.stopChan:
 			t.Stop()
 			return
 		}
@@ -161,10 +162,10 @@ func (m *MemStore) startCleanup(d time.Duration) {
 }
 
 // StopCleanup terminates the automatic cleanup process.
-// Useful for testing and cases when memory store is used only temporary.
-// In order to restart the cleanup, new memory store must be created.
+// Useful for testing and cases when store is used only temporary.
+// In order to restart the cleanup, new store must be created.
 func (m *MemStore) StopCleanup() {
-	if m.stop != nil {
-		m.stop <- struct{}{}
+	if m.stopChan != nil {
+		m.stopChan <- struct{}{}
 	}
 }

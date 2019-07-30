@@ -105,7 +105,7 @@ func newContext(ctx context.Context, s Session) context.Context {
 	return context.WithValue(ctx, sessionKey, s)
 }
 
-// FromContext extracts Session from the context, if its present.
+// FromContext extracts Session from the context.
 func FromContext(ctx context.Context) (Session, bool) {
 	s, ok := ctx.Value(sessionKey).(Session)
 	return s, ok
