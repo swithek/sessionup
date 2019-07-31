@@ -29,14 +29,15 @@ go get github.com/swithek/sessionup
 ## Usage
 The first thing you will need, in order to start creating and validating your sessions, is a Manager:
 ```go
-manager := sessionup.NewManager(yourStore)
+store := memstore.New(time.Minute * 5)
+manager := sessionup.NewManager(store)
 ```
 
 Out-of-the-box sessionup's Manager instance comes with recommended [OWASP](https://github.com/OWASP/CheatSheetSeries/blob/master/cheatsheets/Session_Management_Cheat_Sheet.md#binding-the-session-id-to-other-user-properties) 
 configuration options already set, but if you feel the need to customize the behaviour and the cookie values the Manager
 will use, you can painlessly provide your own options:
 ```go
-manager := sessionup.NewManager(yourStore, sessionup.Secure(false), sessionup.ExpiresIn(time.Hour * 24))
+manager := sessionup.NewManager(store, sessionup.Secure(false), sessionup.ExpiresIn(time.Hour * 24))
 ```
 
 During registration, login or whenever you want to create a fresh session, you have to call the `Init` method and provide
@@ -111,6 +112,7 @@ lacks randomness or has other issues, pass your custom ID generation function as
 - ./memstore/ - in-memory store implementation, already included in this package.
 - [github.com/swithek/sessionup-pgstore](https://github.com/swithek/sessionup-pgstore) - PostgreSQL store implementation.
 
+Custom stores need to implement the [Store](https://godoc.org/github.com/swithek/sessionup#Store) interface to be used by the Manager.
 
 ## Limitations
 sessionup offers server-only session storing and management, since the functionality to revoke/retrieve session not in the 
