@@ -1,8 +1,9 @@
 # sessionup 🚀
 
-[![Build status](https://travis-ci.org/swithek/sessionup.svg?branch=master)](https://travis-ci.org/swithek/sessionup)
-[![Go Report Card](https://goreportcard.com/badge/github.com/swithek/sessionup)](https://goreportcard.com/report/github.com/swithek/sessionup)
 [![GoDoc](https://godoc.org/github.com/swithek/sessionup?status.png)](https://godoc.org/github.com/swithek/sessionup)
+[![Build status](https://travis-ci.org/swithek/sessionup.svg?branch=master)](https://travis-ci.org/swithek/sessionup)
+[![Test coverage](http://gocover.io/_badge/github.com/swithek/sessionup)](https://gocover.io/github.com/swithek/sessionup)
+[![Go Report Card](https://goreportcard.com/badge/github.com/swithek/sessionup)](https://goreportcard.com/report/github.com/swithek/sessionup)
 
 Simple, yet effective HTTP session management and identification package
 
