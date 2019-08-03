@@ -655,6 +655,79 @@ func TestRevoke(t *testing.T) {
 	}
 }
 
+func TestRevokeByID(t *testing.T) {
+	type check func(*testing.T, *StoreMock, error)
+
+	checks := func(cc ...check) []check { return cc }
+
+	hasErr := func(e bool) check {
+		return func(t *testing.T, _ *StoreMock, err error) {
+			if e && err == nil {
+				t.Error("want non-nil, got nil")
+			} else if !e && err != nil {
+				t.Errorf("want nil, got %v", err)
+			}
+		}
+	}
+
+	wasDeleteByIDCalled := func(count int, id string) check {
+		return func(t *testing.T, s *StoreMock, _ error) {
+			ff := s.DeleteByIDCalls()
+			if len(ff) != count {
+				t.Errorf("want %d, got %d", count, len(ff))
+			}
+
+			if len(ff) > 0 && ff[0].ID != id {
+				t.Errorf("want %q, got %q", id, ff[0].ID)
+			}
+		}
+	}
+
+	storeStub := func(err error) *StoreMock {
+		return &StoreMock{
+			DeleteByIDFunc: func(_ context.Context, _ string) error {
+				return err
+			},
+		}
+	}
+
+	id := "id"
+	cc := map[string]struct {
+		Store  *StoreMock
+		ID     string
+		Checks []check
+	}{
+		"Error returned by store.DeleteByID": {
+			Store: storeStub(errors.New("error")),
+			ID:    id,
+			Checks: checks(
+				hasErr(true),
+				wasDeleteByIDCalled(1, id),
+			),
+		},
+		"Successful revoke": {
+			Store: storeStub(nil),
+			ID:    id,
+			Checks: checks(
+				hasErr(false),
+				wasDeleteByIDCalled(1, id),
+			),
+		},
+	}
+
+	for cn, c := range cc {
+		c := c
+		t.Run(cn, func(t *testing.T) {
+			t.Parallel()
+			m := Manager{store: c.Store}
+			err := m.RevokeByID(context.Background(), c.ID)
+			for _, ch := range c.Checks {
+				ch(t, c.Store, err)
+			}
+		})
+	}
+}
+
 func TestRevokeOther(t *testing.T) {
 	type check func(*testing.T, *StoreMock, error)
 
@@ -793,11 +866,7 @@ func TestRevokeAll(t *testing.T) {
 				t.Errorf("want %d, got %d", count, len(ff))
 			}
 
-			if len(ff) == 0 {
-				return
-			}
-
-			if ff[0].Key != key {
+			if len(ff) > 0 && ff[0].Key != key {
 				t.Errorf("want %q, got %q", key, ff[0].Key)
 			}
 		}
@@ -857,6 +926,79 @@ func TestRevokeAll(t *testing.T) {
 			err := m.RevokeAll(c.Ctx, rec)
 			for _, ch := range c.Checks {
 				ch(t, c.Store, rec, err)
+			}
+		})
+	}
+}
+
+func TestRevokeByUserKey(t *testing.T) {
+	type check func(*testing.T, *StoreMock, error)
+
+	checks := func(cc ...check) []check { return cc }
+
+	hasErr := func(e bool) check {
+		return func(t *testing.T, _ *StoreMock, err error) {
+			if e && err == nil {
+				t.Error("want non-nil, got nil")
+			} else if !e && err != nil {
+				t.Errorf("want nil, got %v", err)
+			}
+		}
+	}
+
+	wasDeleteByUserKeyCalled := func(count int, key string) check {
+		return func(t *testing.T, s *StoreMock, _ error) {
+			ff := s.DeleteByUserKeyCalls()
+			if len(ff) != count {
+				t.Errorf("want %d, got %d", count, len(ff))
+			}
+
+			if len(ff) > 0 && ff[0].Key != key {
+				t.Errorf("want %q, got %q", key, ff[0].Key)
+			}
+		}
+	}
+
+	storeStub := func(err error) *StoreMock {
+		return &StoreMock{
+			DeleteByUserKeyFunc: func(_ context.Context, _ string, _ ...string) error {
+				return err
+			},
+		}
+	}
+
+	key := "key"
+	cc := map[string]struct {
+		Store  *StoreMock
+		Key    string
+		Checks []check
+	}{
+		"Error returned by store.DeleteByUserKey": {
+			Store: storeStub(errors.New("error")),
+			Key:   key,
+			Checks: checks(
+				hasErr(true),
+				wasDeleteByUserKeyCalled(1, key),
+			),
+		},
+		"Successful revoke": {
+			Store: storeStub(nil),
+			Key:   key,
+			Checks: checks(
+				hasErr(false),
+				wasDeleteByUserKeyCalled(1, key),
+			),
+		},
+	}
+
+	for cn, c := range cc {
+		c := c
+		t.Run(cn, func(t *testing.T) {
+			t.Parallel()
+			m := Manager{store: c.Store}
+			err := m.RevokeByUserKey(context.Background(), c.Key)
+			for _, ch := range c.Checks {
+				ch(t, c.Store, err)
 			}
 		})
 	}

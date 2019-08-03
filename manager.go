@@ -270,12 +270,18 @@ func (m *Manager) Revoke(ctx context.Context, w http.ResponseWriter) error {
 		return nil
 	}
 
-	if err := m.store.DeleteByID(ctx, s.ID); err != nil {
+	if err := m.RevokeByID(ctx, s.ID); err != nil {
 		return err
 	}
 
 	m.deleteCookie(w)
 	return nil
+}
+
+// RevokeByID deletes session by its ID.
+// Function will be no-op and return nil, if no session is found.
+func (m *Manager) RevokeByID(ctx context.Context, id string) error {
+	return m.store.DeleteByID(ctx, id)
 }
 
 // RevokeOther deletes all sessions of the same user key as session stored in the
@@ -299,12 +305,19 @@ func (m *Manager) RevokeAll(ctx context.Context, w http.ResponseWriter) error {
 		return nil
 	}
 
-	if err := m.store.DeleteByUserKey(ctx, s.UserKey); err != nil {
+	if err := m.RevokeByUserKey(ctx, s.UserKey); err != nil {
 		return err
 	}
 
 	m.deleteCookie(w)
 	return nil
+}
+
+// RevokeByUserKey deletes all sessions under the provided user key.
+// This includes context session as well.
+// Function will be no-op and return nil, if no sessions are found.
+func (m *Manager) RevokeByUserKey(ctx context.Context, key string) error {
+	return m.store.DeleteByUserKey(ctx, key)
 }
 
 // FetchAll retrieves all sessions of the same user key as session stored in the
