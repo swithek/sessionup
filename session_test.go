@@ -138,7 +138,7 @@ func TestReadIP(t *testing.T) {
 
 func TestNewContext(t *testing.T) {
 	s := Session{Current: true}
-	ctx := newContext(context.Background(), s)
+	ctx := NewContext(context.Background(), s)
 
 	cs, ok := ctx.Value(sessionKey).(Session)
 	if !ok {

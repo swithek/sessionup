@@ -622,7 +622,7 @@ func TestRevoke(t *testing.T) {
 		},
 		"Error returned by store.DeleteByID": {
 			Store: storeStub(errors.New("error")),
-			Ctx:   newContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), s),
 			Checks: checks(
 				hasErr(true),
 				hasCookie(false),
@@ -631,7 +631,7 @@ func TestRevoke(t *testing.T) {
 		},
 		"Successful revoke": {
 			Store: storeStub(nil),
-			Ctx:   newContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), s),
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
@@ -791,7 +791,7 @@ func TestRevokeOther(t *testing.T) {
 		},
 		"Error returned by store.DeleteByUserKey": {
 			Store: storeStub(errors.New("error")),
-			Ctx:   newContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), s),
 			Checks: checks(
 				hasErr(true),
 				wasDeleteByUserKeyCalled(1, s.UserKey, s.ID),
@@ -799,7 +799,7 @@ func TestRevokeOther(t *testing.T) {
 		},
 		"Successful revoke": {
 			Store: storeStub(nil),
-			Ctx:   newContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), s),
 			Checks: checks(
 				hasErr(false),
 				wasDeleteByUserKeyCalled(1, s.UserKey, s.ID),
@@ -898,7 +898,7 @@ func TestRevokeAll(t *testing.T) {
 		},
 		"Error returned by store.DeleteByUserKey": {
 			Store: storeStub(errors.New("error")),
-			Ctx:   newContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), s),
 			Checks: checks(
 				hasErr(true),
 				hasCookie(false),
@@ -907,7 +907,7 @@ func TestRevokeAll(t *testing.T) {
 		},
 		"Successful revoke": {
 			Store: storeStub(nil),
-			Ctx:   newContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), s),
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
@@ -1085,7 +1085,7 @@ func TestFetchAll(t *testing.T) {
 		},
 		"Error returned by store.FetchByUserKey": {
 			Store: storeStub(nil, errors.New("error")),
-			Ctx:   newContext(context.Background(), curr),
+			Ctx:   NewContext(context.Background(), curr),
 			Checks: checks(
 				hasErr(true),
 				hasSessions(nil, false),
@@ -1094,7 +1094,7 @@ func TestFetchAll(t *testing.T) {
 		},
 		"No sessions found": {
 			Store: storeStub(nil, nil),
-			Ctx:   newContext(context.Background(), curr),
+			Ctx:   NewContext(context.Background(), curr),
 			Checks: checks(
 				hasErr(false),
 				hasSessions(nil, false),
@@ -1103,7 +1103,7 @@ func TestFetchAll(t *testing.T) {
 		},
 		"Successful fetch": {
 			Store: storeStub(ss(), nil),
-			Ctx:   newContext(context.Background(), curr),
+			Ctx:   NewContext(context.Background(), curr),
 			Checks: checks(
 				hasErr(false),
 				hasSessions(ss(), true),

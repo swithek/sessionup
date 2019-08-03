@@ -257,7 +257,7 @@ func (m *Manager) wrap(rej func(error) http.Handler, next http.Handler) http.Han
 			return
 		}
 
-		next.ServeHTTP(w, r.WithContext(newContext(ctx, s)))
+		next.ServeHTTP(w, r.WithContext(NewContext(ctx, s)))
 	})
 }
 

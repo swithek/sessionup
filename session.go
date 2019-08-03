@@ -99,9 +99,9 @@ type contextKey int
 
 const sessionKey contextKey = 0
 
-// newContext creates a new context with the provided Session set as
+// NewContext creates a new context with the provided Session set as
 // a context value.
-func newContext(ctx context.Context, s Session) context.Context {
+func NewContext(ctx context.Context, s Session) context.Context {
 	return context.WithValue(ctx, sessionKey, s)
 }
 
