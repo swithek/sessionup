@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
+
+	"xojoc.pw/useragent"
 )
 
 func TestCookieName(t *testing.T) {
@@ -90,6 +93,15 @@ func TestWithAgent(t *testing.T) {
 	WithAgent(val)(&m)
 	if m.withAgent != val {
 		t.Errorf("want %t, got %t", val, m.withAgent)
+	}
+}
+
+func TestValidate(t *testing.T) {
+	m := Manager{}
+	val := true
+	Validate(val)(&m)
+	if m.validate != val {
+		t.Errorf("want %t, got %t", val, m.validate)
 	}
 }
 
@@ -307,6 +319,8 @@ func TestInit(t *testing.T) {
 }
 
 func TestPublic(t *testing.T) {
+	ip := "127.0.0.1"
+
 	type check func(*testing.T, *StoreMock, *httptest.ResponseRecorder)
 
 	checks := func(cc ...check) []check { return cc }
@@ -339,7 +353,12 @@ func TestPublic(t *testing.T) {
 	storeStub := func(bRes bool, err error) *StoreMock {
 		return &StoreMock{
 			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
-				return Session{}, bRes, err
+				s := Session{
+					IP: net.ParseIP(ip),
+				}
+				s.Agent.OS = useragent.OSLinux
+				s.Agent.Browser = "Firefox"
+				return s, bRes, err
 			},
 		}
 	}
@@ -350,6 +369,7 @@ func TestPublic(t *testing.T) {
 		Store  *StoreMock
 		Cookie *http.Cookie
 		Auth   bool
+		IP     string
 		Checks []check
 	}{
 		"Invalid cookie": {
@@ -359,6 +379,7 @@ func TestPublic(t *testing.T) {
 				Value: id,
 			},
 			Auth: false,
+			IP:   ip,
 			Checks: checks(
 				hasResp(http.StatusOK),
 				wasFetchByIDCalled(0, ""),
@@ -371,6 +392,7 @@ func TestPublic(t *testing.T) {
 				Value: id,
 			},
 			Auth: false,
+			IP:   ip,
 			Checks: checks(
 				hasResp(http.StatusOK),
 				wasFetchByIDCalled(1, id),
@@ -383,6 +405,20 @@ func TestPublic(t *testing.T) {
 				Value: id,
 			},
 			Auth: false,
+			IP:   ip,
+			Checks: checks(
+				hasResp(http.StatusOK),
+				wasFetchByIDCalled(1, id),
+			),
+		},
+		"IP is invalid": {
+			Store: storeStub(true, nil),
+			Cookie: &http.Cookie{
+				Name:  defaultName,
+				Value: id,
+			},
+			Auth: false,
+			IP:   "127.0.0.2",
 			Checks: checks(
 				hasResp(http.StatusOK),
 				wasFetchByIDCalled(1, id),
@@ -395,6 +431,7 @@ func TestPublic(t *testing.T) {
 				Value: id,
 			},
 			Auth: true,
+			IP:   ip,
 			Checks: checks(
 				hasResp(http.StatusOK),
 				wasFetchByIDCalled(1, id),
@@ -418,7 +455,9 @@ func TestPublic(t *testing.T) {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest("GET", "http://example.com", nil)
 			req.AddCookie(c.Cookie)
-			m := Manager{store: c.Store}
+			req.Header.Set("X-Forwarded-For", c.IP)
+			req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux i686; rv:38.0) Gecko/20100101 Firefox/38.0")
+			m := Manager{store: c.Store, validate: true}
 			m.Defaults()
 			m.Public(next(t, c.Auth)).ServeHTTP(rec, req)
 			for _, ch := range c.Checks {
@@ -429,6 +468,8 @@ func TestPublic(t *testing.T) {
 }
 
 func TestAuth(t *testing.T) {
+	ip := "127.0.0.1"
+
 	type check func(*testing.T, *StoreMock, *httptest.ResponseRecorder)
 
 	checks := func(cc ...check) []check { return cc }
@@ -461,7 +502,12 @@ func TestAuth(t *testing.T) {
 	storeStub := func(bRes bool, err error) *StoreMock {
 		return &StoreMock{
 			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
-				return Session{}, bRes, err
+				s := Session{
+					IP: net.ParseIP(ip),
+				}
+				s.Agent.OS = useragent.OSLinux
+				s.Agent.Browser = "Firefox"
+				return s, bRes, err
 			},
 		}
 	}
@@ -471,6 +517,7 @@ func TestAuth(t *testing.T) {
 	cc := map[string]struct {
 		Store  *StoreMock
 		Cookie *http.Cookie
+		IP     string
 		Checks []check
 	}{
 		"Invalid cookie": {
@@ -479,6 +526,7 @@ func TestAuth(t *testing.T) {
 				Name:  "incorrect",
 				Value: id,
 			},
+			IP: ip,
 			Checks: checks(
 				hasResp(http.StatusUnauthorized, true),
 				wasFetchByIDCalled(0, ""),
@@ -490,6 +538,7 @@ func TestAuth(t *testing.T) {
 				Name:  defaultName,
 				Value: id,
 			},
+			IP: ip,
 			Checks: checks(
 				hasResp(http.StatusUnauthorized, true),
 				wasFetchByIDCalled(1, id),
@@ -501,6 +550,19 @@ func TestAuth(t *testing.T) {
 				Name:  defaultName,
 				Value: id,
 			},
+			IP: ip,
+			Checks: checks(
+				hasResp(http.StatusUnauthorized, true),
+				wasFetchByIDCalled(1, id),
+			),
+		},
+		"IP is invalid": {
+			Store: storeStub(true, nil),
+			Cookie: &http.Cookie{
+				Name:  defaultName,
+				Value: id,
+			},
+			IP: "127.0.0.2",
 			Checks: checks(
 				hasResp(http.StatusUnauthorized, true),
 				wasFetchByIDCalled(1, id),
@@ -512,6 +574,7 @@ func TestAuth(t *testing.T) {
 				Name:  defaultName,
 				Value: id,
 			},
+			IP: ip,
 			Checks: checks(
 				hasResp(http.StatusOK, false),
 				wasFetchByIDCalled(1, id),
@@ -535,7 +598,9 @@ func TestAuth(t *testing.T) {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest("GET", "http://example.com", nil)
 			req.AddCookie(c.Cookie)
-			m := Manager{store: c.Store}
+			req.Header.Set("X-Forwarded-For", c.IP)
+			req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux i686; rv:38.0) Gecko/20100101 Firefox/38.0")
+			m := Manager{store: c.Store, validate: true}
 			m.Defaults()
 			m.Auth(next(t)).ServeHTTP(rec, req)
 			for _, ch := range c.Checks {
