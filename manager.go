@@ -31,6 +31,7 @@ type Manager struct {
 	expiresIn time.Duration
 	withIP    bool
 	withAgent bool
+	validate  bool
 
 	genID  func() string
 	reject func(error) http.Handler
@@ -118,6 +119,15 @@ func WithIP(w bool) setter {
 func WithAgent(w bool) setter {
 	return func(m *Manager) {
 		m.withAgent = w
+	}
+}
+
+// Validate sets whether IP and User-Agent data
+// should be checked on each request to authenticated
+// routes.
+func Validate(v bool) setter {
+	return func(m *Manager) {
+		m.validate = v
 	}
 }
 
@@ -214,8 +224,9 @@ func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string) error
 // Public wraps the provided handler, checks whether the session, associated to
 // the ID stored in request's cookie, exists in the store and adds it to the
 // request's context.
-// If no valid cookie is provided, session doesn't exist or the store returns
-// an error, wrapped handler will be activated nonetheless.
+// If no valid cookie is provided, session doesn't exist, the properties of the
+// request don't match the ones associated to the session (if validation is
+// activated) or the store returns an error, wrapped handler will be activated nonetheless.
 // Rejection function will be called only for non-http side effects (like error logging),
 // but response/request control will not be passed to it.
 func (m *Manager) Public(next http.Handler) http.Handler {
@@ -228,8 +239,9 @@ func (m *Manager) Public(next http.Handler) http.Handler {
 // Auth wraps the provided handler, checks whether the session, associated to
 // the ID stored in request's cookie, exists in the store and adds it to the
 // request's context.
-// Wrapped handler will be activated only if there are no errors returned from the store
-// and the session is found, otherwise, the manager's rejection function will be called.
+// Wrapped handler will be activated only if there are no errors returned from the store,
+// the session is found and its properties match the ones in the request (if
+// validation is activated), otherwise, the manager's rejection function will be called.
 func (m *Manager) Auth(next http.Handler) http.Handler {
 	return m.wrap(m.reject, next)
 }
@@ -253,6 +265,11 @@ func (m *Manager) wrap(rej func(error) http.Handler, next http.Handler) http.Han
 		}
 
 		if !ok {
+			rej(errors.New("unauthorized")).ServeHTTP(w, r)
+			return
+		}
+
+		if m.validate && !s.isValid(r) {
 			rej(errors.New("unauthorized")).ServeHTTP(w, r)
 			return
 		}

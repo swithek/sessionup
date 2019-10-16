@@ -12,6 +12,99 @@ import (
 	"xojoc.pw/useragent"
 )
 
+func TestIsValid(t *testing.T) {
+	ses := Session{
+		IP: net.ParseIP("127.0.0.1"),
+	}
+
+	ses.Agent.OS = useragent.OSWindows
+	ses.Agent.Browser = "Chrome"
+
+	req := httptest.NewRequest("GET", "http://example.com/", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.111 Safari/537.36")
+	req.RemoteAddr = "127.0.0.1:3000"
+
+	cc := map[string]struct {
+		Req     *http.Request
+		Session Session
+		Res     bool
+	}{
+		"Invalid IP": {
+			Req: func() *http.Request {
+				creq := httptest.NewRequest("GET", "http://example.com/", nil)
+				creq.Header.Set("User-Agent", req.Header.Get("User-Agent"))
+				creq.RemoteAddr = "127.0.0.2:3000"
+				return creq
+			}(),
+			Session: ses,
+			Res:     false,
+		},
+		"Invalid User-Agent browser": {
+			Req: func() *http.Request {
+				creq := httptest.NewRequest("GET", "http://example.com/", nil)
+				creq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246")
+				creq.RemoteAddr = req.RemoteAddr
+				return creq
+			}(),
+			Session: ses,
+			Res:     false,
+		},
+		"Invalid User-Agent os": {
+			Req: func() *http.Request {
+				creq := httptest.NewRequest("GET", "http://example.com/", nil)
+				creq.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 5.1.1; SM-G928X Build/LMY47X) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.83 Mobile Safari/537.36")
+				creq.RemoteAddr = req.RemoteAddr
+				return creq
+			}(),
+			Session: ses,
+			Res:     false,
+		},
+		"Successful all fields except ip validation": {
+			Req: req,
+			Session: func() Session {
+				cses := ses
+				cses.IP = nil
+				return cses
+			}(),
+			Res: true,
+		},
+		"Successful all fields except os validation": {
+			Req: req,
+			Session: func() Session {
+				cses := ses
+				cses.Agent.OS = ""
+				return cses
+			}(),
+			Res: true,
+		},
+		"Successful all fields except browser validation": {
+			Req: req,
+			Session: func() Session {
+				cses := ses
+				cses.Agent.Browser = ""
+				return cses
+			}(),
+			Res: true,
+		},
+		"Successful all fields validation": {
+			Req:     req,
+			Session: ses,
+			Res:     true,
+		},
+	}
+
+	for cn, c := range cc {
+		c := c
+		t.Run(cn, func(t *testing.T) {
+			t.Parallel()
+			res := c.Session.isValid(c.Req)
+			if res != c.Res {
+				t.Errorf("want %t, got %t", c.Res, res)
+			}
+		})
+	}
+}
+
 func TestNewSession(t *testing.T) {
 	m := Manager{
 		expiresIn: time.Hour,

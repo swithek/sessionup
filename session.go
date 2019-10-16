@@ -48,6 +48,29 @@ type Session struct {
 	} `json:"agent"`
 }
 
+// isValid checks whether the incoming request's properties match
+// active session's properties.
+func (s Session) isValid(r *http.Request) bool {
+	ip := true
+	if len(s.IP) != 0 {
+		ip = s.IP.Equal(readIP(r))
+	}
+
+	a := useragent.Parse(r.Header.Get("User-Agent"))
+
+	os := true
+	if s.Agent.OS != "" {
+		os = s.Agent.OS == a.OS
+	}
+
+	browser := true
+	if s.Agent.Browser != "" {
+		browser = s.Agent.Browser == a.Name
+	}
+
+	return ip && os && browser
+}
+
 // newSession creates a new Session with the data extracted from
 // the provided request, user key and a freshly generated ID.
 func (m *Manager) newSession(r *http.Request, key string) Session {
