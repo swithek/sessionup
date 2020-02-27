@@ -48,9 +48,9 @@ type Session struct {
 	} `json:"agent"`
 }
 
-// isValid checks whether the incoming request's properties match
+// IsValid checks whether the incoming request's properties match
 // active session's properties.
-func (s Session) isValid(r *http.Request) bool {
+func (s Session) IsValid(r *http.Request) bool {
 	ip := true
 	if len(s.IP) != 0 {
 		ip = s.IP.Equal(readIP(r))

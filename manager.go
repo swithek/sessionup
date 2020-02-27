@@ -269,7 +269,7 @@ func (m *Manager) wrap(rej func(error) http.Handler, next http.Handler) http.Han
 			return
 		}
 
-		if m.validate && !s.isValid(r) {
+		if m.validate && !s.IsValid(r) {
 			rej(errors.New("unauthorized")).ServeHTTP(w, r)
 			return
 		}

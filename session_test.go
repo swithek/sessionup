@@ -97,7 +97,7 @@ func TestIsValid(t *testing.T) {
 		c := c
 		t.Run(cn, func(t *testing.T) {
 			t.Parallel()
-			res := c.Session.isValid(c.Req)
+			res := c.Session.IsValid(c.Req)
 			if res != c.Res {
 				t.Errorf("want %t, got %t", c.Res, res)
 			}
