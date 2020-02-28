@@ -793,6 +793,144 @@ func TestRevokeByID(t *testing.T) {
 	}
 }
 
+func TestRevokeByIDExt(t *testing.T) {
+	type check func(*testing.T, *StoreMock, error)
+
+	checks := func(cc ...check) []check { return cc }
+
+	hasErr := func(e bool) check {
+		return func(t *testing.T, _ *StoreMock, err error) {
+			if e && err == nil {
+				t.Error("want non-nil, got nil")
+			} else if !e && err != nil {
+				t.Errorf("want nil, got %v", err)
+			}
+		}
+	}
+
+	wasFetchByIDCalled := func(count int, id string) check {
+		return func(t *testing.T, s *StoreMock, _ error) {
+			ff := s.FetchByIDCalls()
+			if len(ff) != count {
+				t.Errorf("want %d, got %d", count, len(ff))
+			}
+
+			if len(ff) > 0 && ff[0].ID != id {
+				t.Errorf("want %q, got %q", id, ff[0].ID)
+			}
+		}
+	}
+
+	wasDeleteByIDCalled := func(count int, id string) check {
+		return func(t *testing.T, s *StoreMock, _ error) {
+			ff := s.DeleteByIDCalls()
+			if len(ff) != count {
+				t.Errorf("want %d, got %d", count, len(ff))
+			}
+
+			if len(ff) > 0 && ff[0].ID != id {
+				t.Errorf("want %q, got %q", id, ff[0].ID)
+			}
+		}
+	}
+
+	storeStub := func(ses Session, isSes bool, err1, err2 error) *StoreMock {
+		return &StoreMock{
+			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
+				return ses, isSes, err1
+			},
+			DeleteByIDFunc: func(_ context.Context, _ string) error {
+				return err2
+			},
+		}
+	}
+
+	ses := Session{ID: "123", UserKey: "user123"}
+	cc := map[string]struct {
+		Store  *StoreMock
+		Ctx    context.Context
+		ID     string
+		Checks []check
+	}{
+		"No active session": {
+			Store: storeStub(ses, true, nil, nil),
+			Ctx:   context.Background(),
+			ID:    ses.ID,
+			Checks: checks(
+				hasErr(false),
+				wasFetchByIDCalled(0, ""),
+				wasDeleteByIDCalled(0, ""),
+			),
+		},
+		"Error returned by store.FetchByID": {
+			Store: storeStub(Session{}, false, errors.New("error"), nil),
+			Ctx:   NewContext(context.Background(), ses),
+			ID:    ses.ID,
+			Checks: checks(
+				hasErr(true),
+				wasFetchByIDCalled(1, ses.ID),
+				wasDeleteByIDCalled(0, ""),
+			),
+		},
+		"Session not found": {
+			Store: storeStub(Session{}, false, nil, nil),
+			Ctx:   NewContext(context.Background(), ses),
+			ID:    ses.ID,
+			Checks: checks(
+				hasErr(false),
+				wasFetchByIDCalled(1, ses.ID),
+				wasDeleteByIDCalled(0, ""),
+			),
+		},
+		"User key mismatch": {
+			Store: storeStub(func() Session {
+				tmp := ses
+				tmp.UserKey = "user222"
+				return tmp
+			}(), true, nil, nil),
+			Ctx: NewContext(context.Background(), ses),
+			ID:  ses.ID,
+			Checks: checks(
+				hasErr(true),
+				wasFetchByIDCalled(1, ses.ID),
+				wasDeleteByIDCalled(0, ""),
+			),
+		},
+		"Error returned by store.DeleteByID": {
+			Store: storeStub(ses, true, nil, errors.New("error")),
+			Ctx:   NewContext(context.Background(), ses),
+			ID:    ses.ID,
+			Checks: checks(
+				hasErr(true),
+				wasFetchByIDCalled(1, ses.ID),
+				wasDeleteByIDCalled(1, ses.ID),
+			),
+		},
+		"Successful revoke": {
+			Store: storeStub(ses, true, nil, nil),
+			Ctx:   NewContext(context.Background(), ses),
+			ID:    ses.ID,
+			Checks: checks(
+				hasErr(false),
+				wasFetchByIDCalled(1, ses.ID),
+				wasDeleteByIDCalled(1, ses.ID),
+			),
+		},
+	}
+
+	for cn, c := range cc {
+		c := c
+		t.Run(cn, func(t *testing.T) {
+			t.Parallel()
+			m := Manager{store: c.Store}
+			err := m.RevokeByIDExt(c.Ctx, c.ID)
+			for _, ch := range c.Checks {
+				ch(t, c.Store, err)
+			}
+		})
+	}
+}
+
 func TestRevokeOther(t *testing.T) {
 	type check func(*testing.T, *StoreMock, error)
 
