@@ -244,15 +244,27 @@ func TestInit(t *testing.T) {
 		}
 	}
 
-	wasCreateCalled := func(count int, key string) check {
+	wasCreateCalled := func(count int, key string, t1, t2 time.Time) check {
 		return func(t *testing.T, s *StoreMock, _ *httptest.ResponseRecorder, _ error) {
 			ff := s.CreateCalls()
 			if len(ff) != count {
 				t.Errorf("want %d, got %d", count, len(ff))
 			}
 
-			if len(ff) > 0 && ff[0].S.UserKey != key {
+			if len(ff) == 0 {
+				return
+			}
+
+			if ff[0].S.UserKey != key {
 				t.Errorf("want %q, got %q", key, ff[0].S.UserKey)
+			}
+
+			if !ff[0].S.ExpiresAt.After(t1) {
+				t.Errorf("want after %s, got %s", t1.String(), ff[0].S.ExpiresAt.String())
+			}
+
+			if !ff[0].S.ExpiresAt.Before(t2) {
+				t.Errorf("want before %s, got %s", t2.String(), ff[0].S.ExpiresAt.String())
 			}
 		}
 	}
@@ -274,28 +286,30 @@ func TestInit(t *testing.T) {
 	}{
 		"Error returned by store.Create": {
 			Store:     storeStub(errors.New("error")),
-			ExpiresIn: time.Hour,
+			ExpiresIn: time.Hour * 24 * 30,
 			Checks: checks(
 				hasErr(true),
 				hasCookie(false),
-				wasCreateCalled(1, key),
+				wasCreateCalled(1, key, time.Now().Add(time.Hour*24),
+					time.Now().Add(time.Hour*24*30+time.Second)),
 			),
 		},
-		"Successful init without expiration field": {
+		"Successful temporary session init": {
 			Store: storeStub(nil),
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
-				wasCreateCalled(0, ""),
+				wasCreateCalled(1, key, time.Time{}, time.Now().Add(time.Hour*24+time.Second)),
 			),
 		},
-		"Successful init": {
+		"Successful permanent session init": {
 			Store:     storeStub(nil),
-			ExpiresIn: time.Hour,
+			ExpiresIn: time.Hour * 24 * 30,
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
-				wasCreateCalled(1, key),
+				wasCreateCalled(1, key, time.Now().Add(time.Hour*24),
+					time.Now().Add(time.Hour*24*30+time.Second)),
 			),
 		},
 	}

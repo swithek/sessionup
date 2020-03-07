@@ -15,6 +15,15 @@ const (
 	idLen       = 40
 )
 
+var (
+	// ErrUnauthorized is returned when no valid session is found.
+	ErrUnauthorized = errors.New("unauthorized")
+
+	// ErrNotOwner is returned when session's status is being modified
+	// not by its owner.
+	ErrNotOwner = errors.New("session can be managed only by its owner")
+)
+
 // Manager holds the data needed to properly create sessions
 // and set them in http responses, extract them from http requests,
 // validate them and directly communicate with the store.
@@ -211,13 +220,16 @@ func (m *Manager) Clone(opts ...setter) *Manager {
 // the store and sets the proper values of the cookie.
 func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string) error {
 	s := m.newSession(r, key)
-	if s.ExpiresAt.After(time.Time{}) {
-		if err := m.store.Create(r.Context(), s); err != nil {
-			return err
-		}
+	exp := s.ExpiresAt
+	if s.ExpiresAt.IsZero() {
+		s.ExpiresAt = time.Now().Add(time.Hour * 24) // for temporary sessions
 	}
 
-	m.setCookie(w, s.ExpiresAt, s.ID)
+	if err := m.store.Create(r.Context(), s); err != nil {
+		return err
+	}
+
+	m.setCookie(w, exp, s.ID)
 	return nil
 }
 
@@ -265,12 +277,12 @@ func (m *Manager) wrap(rej func(error) http.Handler, next http.Handler) http.Han
 		}
 
 		if !ok {
-			rej(errors.New("unauthorized")).ServeHTTP(w, r)
+			rej(ErrUnauthorized).ServeHTTP(w, r)
 			return
 		}
 
 		if m.validate && !s.IsValid(r) {
-			rej(errors.New("unauthorized")).ServeHTTP(w, r)
+			rej(ErrUnauthorized).ServeHTTP(w, r)
 			return
 		}
 
@@ -320,7 +332,7 @@ func (m *Manager) RevokeByIDExt(ctx context.Context, id string) error {
 	}
 
 	if s2.UserKey != s1.UserKey {
-		return errors.New("session can be revoked only by its owner")
+		return ErrNotOwner
 	}
 
 	return m.store.DeleteByID(ctx, id)
