@@ -113,7 +113,7 @@ func ExpiresIn(e time.Duration) setter {
 	}
 }
 
-// WithIP sets whether IP should be extracted
+// WithIP determines whether IP should be extracted
 // from the request or not.
 // Defaults to true.
 func WithIP(w bool) setter {
@@ -122,7 +122,7 @@ func WithIP(w bool) setter {
 	}
 }
 
-// WithAgent sets whether User-Agent data should
+// WithAgent determines whether User-Agent data should
 // be extracted from the request or not.
 // Defaults to true.
 func WithAgent(w bool) setter {
@@ -131,9 +131,9 @@ func WithAgent(w bool) setter {
 	}
 }
 
-// Validate sets whether IP and User-Agent data
+// Validate determines whether IP and User-Agent data
 // should be checked on each request to authenticated
-// routes.
+// routes or not.
 func Validate(v bool) setter {
 	return func(m *Manager) {
 		m.validate = v
@@ -234,8 +234,8 @@ func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string) error
 }
 
 // Public wraps the provided handler, checks whether the session, associated to
-// the ID stored in request's cookie, exists in the store and adds it to the
-// request's context.
+// the ID stored in request's cookie, exists in the store or not and, if
+// former is the case, adds it to the request's context.
 // If no valid cookie is provided, session doesn't exist, the properties of the
 // request don't match the ones associated to the session (if validation is
 // activated) or the store returns an error, wrapped handler will be activated nonetheless.
@@ -249,8 +249,8 @@ func (m *Manager) Public(next http.Handler) http.Handler {
 }
 
 // Auth wraps the provided handler, checks whether the session, associated to
-// the ID stored in request's cookie, exists in the store and adds it to the
-// request's context.
+// the ID stored in request's cookie, exists in the store or not and, if
+// former is the case, adds it to the request's context.
 // Wrapped handler will be activated only if there are no errors returned from the store,
 // the session is found and its properties match the ones in the request (if
 // validation is activated), otherwise, the manager's rejection function will be called.

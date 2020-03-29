@@ -13,7 +13,7 @@ import (
 // Session holds all the data needed to identify a session.
 type Session struct {
 	// Current specifies whether this session's ID
-	// matches the ID stored in the request's cookie.
+	// matches the ID stored in the request's cookie or not.
 	// NOTE: this field should be omitted by Store interface
 	// implementations when inserting session into the underlying
 	// data store.
@@ -49,7 +49,7 @@ type Session struct {
 }
 
 // IsValid checks whether the incoming request's properties match
-// active session's properties.
+// active session's properties or not.
 func (s Session) IsValid(r *http.Request) bool {
 	ip := true
 	if len(s.IP) != 0 {
