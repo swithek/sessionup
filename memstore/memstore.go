@@ -12,9 +12,11 @@ import (
 // Since session data is being kept in memory, it will be lost
 // once the application is closed.
 type MemStore struct {
-	mu       sync.RWMutex
+	dataMu   sync.RWMutex
 	sessions map[string]sessionup.Session
 	users    map[string][]string
+
+	stopMu   sync.RWMutex
 	stopChan chan struct{}
 }
 
@@ -37,24 +39,24 @@ func New(d time.Duration) *MemStore {
 
 // Create implements sessionup.Store interface's Create method.
 func (m *MemStore) Create(_ context.Context, s sessionup.Session) error {
-	m.mu.Lock()
+	m.dataMu.Lock()
 	_, ok := m.sessions[s.ID]
 	if ok {
-		m.mu.Unlock()
+		m.dataMu.Unlock()
 		return sessionup.ErrDuplicateID
 	}
 
 	m.users[s.UserKey] = append(m.users[s.UserKey], s.ID)
 	m.sessions[s.ID] = s
-	m.mu.Unlock()
+	m.dataMu.Unlock()
 	return nil
 }
 
 // FetchByID implements sessionup.Store interface's FetchByID method.
 func (m *MemStore) FetchByID(_ context.Context, id string) (sessionup.Session, bool, error) {
-	m.mu.RLock()
+	m.dataMu.RLock()
 	s, ok := m.sessions[id]
-	m.mu.RUnlock()
+	m.dataMu.RUnlock()
 	if ok && !s.ExpiresAt.After(time.Now()) {
 		return sessionup.Session{}, false, nil
 	}
@@ -63,7 +65,7 @@ func (m *MemStore) FetchByID(_ context.Context, id string) (sessionup.Session, b
 
 // FetchByUserKey implements sessionup.Store interface's FetchByUserKey method.
 func (m *MemStore) FetchByUserKey(_ context.Context, key string) ([]sessionup.Session, error) {
-	m.mu.RLock()
+	m.dataMu.RLock()
 	ids := m.users[key]
 	var ss []sessionup.Session
 	for _, id := range ids {
@@ -72,27 +74,27 @@ func (m *MemStore) FetchByUserKey(_ context.Context, key string) ([]sessionup.Se
 			ss = append(ss, s)
 		}
 	}
-	m.mu.RUnlock()
+	m.dataMu.RUnlock()
 	return ss, nil
 }
 
 // DeleteByID implements sessionup.Store interface's DeleteByID method.
 func (m *MemStore) DeleteByID(_ context.Context, id string) error {
-	m.mu.Lock()
+	m.dataMu.Lock()
 	s, ok := m.sessions[id]
 	if !ok {
-		m.mu.Unlock()
+		m.dataMu.Unlock()
 		return nil
 	}
 
 	m.del(id, s.UserKey)
-	m.mu.Unlock()
+	m.dataMu.Unlock()
 	return nil
 }
 
 // DeleteByUserKey implements sessionup.Store interface's DeleteByUserKey method.
 func (m *MemStore) DeleteByUserKey(_ context.Context, key string, expID ...string) error {
-	m.mu.Lock()
+	m.dataMu.Lock()
 	ids := m.users[key]
 	var bin []string
 outer:
@@ -110,7 +112,7 @@ outer:
 		m.del(v, key)
 	}
 
-	m.mu.Unlock()
+	m.dataMu.Unlock()
 	return nil
 }
 
@@ -135,27 +137,31 @@ func (m *MemStore) del(id, key string) {
 // deleteExpired deletes all expired sessions.
 func (m *MemStore) deleteExpired() {
 	t := time.Now()
-	m.mu.Lock()
+	m.dataMu.Lock()
 	for _, s := range m.sessions {
 		if !s.ExpiresAt.After(t) {
 			m.del(s.ID, s.UserKey)
 		}
 	}
-	m.mu.Unlock()
+	m.dataMu.Unlock()
 }
 
 // startCleanup activates repeated sessions' checking and
 // deletion process.
 // NOTE: should be called on a separate goroutine.
 func (m *MemStore) startCleanup(d time.Duration) {
+	m.stopMu.Lock()
 	m.stopChan = make(chan struct{})
+	m.stopMu.Unlock()
+
 	t := time.NewTicker(d)
+	defer t.Stop()
+
 	for {
 		select {
 		case <-t.C:
 			m.deleteExpired()
 		case <-m.stopChan:
-			t.Stop()
 			return
 		}
 	}
@@ -165,7 +171,9 @@ func (m *MemStore) startCleanup(d time.Duration) {
 // Useful for testing and cases when store is used only temporary.
 // In order to restart the cleanup, new store must be created.
 func (m *MemStore) StopCleanup() {
+	m.stopMu.Lock()
 	if m.stopChan != nil {
 		m.stopChan <- struct{}{}
 	}
+	m.stopMu.Unlock()
 }
