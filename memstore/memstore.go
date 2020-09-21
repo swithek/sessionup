@@ -171,9 +171,9 @@ func (m *MemStore) startCleanup(d time.Duration) {
 // Useful for testing and cases when store is used only temporary.
 // In order to restart the cleanup, new store must be created.
 func (m *MemStore) StopCleanup() {
-	m.stopMu.Lock()
+	m.stopMu.RLock()
 	if m.stopChan != nil {
 		m.stopChan <- struct{}{}
 	}
-	m.stopMu.Unlock()
+	m.stopMu.RUnlock()
 }
