@@ -38,9 +38,11 @@ func TestNew(t *testing.T) {
 		t.Error("want non-nil, got nil")
 	}
 
+	m.stopMu.RLock()
 	if m.stopChan == nil {
 		t.Error("want non-nil, got nil")
 	}
+	m.stopMu.RUnlock()
 
 	m.StopCleanup()
 }
