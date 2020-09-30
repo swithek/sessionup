@@ -111,17 +111,14 @@ lacks randomness or has other issues, pass your custom ID generation function as
 
 ## Store implementations
 - ./memstore/ - in-memory store implementation, already included in this package.
+- [github.com/swithek/sessionup-redisstore](https://github.com/swithek/sessionup-redisstore) - Redis store implementation.
 - [github.com/swithek/sessionup-pgstore](https://github.com/swithek/sessionup-pgstore) - PostgreSQL store implementation.
 
 Custom stores need to implement the [Store](https://godoc.org/github.com/swithek/sessionup#Store) interface to be used by the Manager.
 
 ## Limitations
 sessionup offers server-only session storing and management, since the functionality to revoke/retrieve session not in the 
-incoming request is not possible with cookie stores. Also, because sessionup needs to be able to retrieve the sessions by two 
-keys (ID and shared user key), key/value store implementations might become a bit more complex.
-
-Flash session management is also unavailable in sessionup, chiefly because the main focus of this package is user 
-authentication sessions.
+incoming request is not possible with cookie stores.
 
 ## Demo
 You can see sessionup in action by trying out the demo in cmd/example/
