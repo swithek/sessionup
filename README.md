@@ -113,6 +113,7 @@ lacks randomness or has other issues, pass your custom ID generation function as
 - ./memstore/ - in-memory store implementation, already included in this package.
 - [github.com/swithek/sessionup-redisstore](https://github.com/swithek/sessionup-redisstore) - Redis store implementation.
 - [github.com/swithek/sessionup-pgstore](https://github.com/swithek/sessionup-pgstore) - PostgreSQL store implementation.
+- [github.com/Hyzual/sessionup-sqlitestore](https://github.com/Hyzual/sessionup-sqlitestore) - SQLite store implementation.
 
 Custom stores need to implement the [Store](https://godoc.org/github.com/swithek/sessionup#Store) interface to be used by the Manager.
 
