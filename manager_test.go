@@ -244,7 +244,7 @@ func TestInit(t *testing.T) {
 		}
 	}
 
-	wasCreateCalled := func(count int, key string, t1, t2 time.Time) check {
+	wasCreateCalled := func(count int, key string, t1, t2 time.Time, m map[string]string) check {
 		return func(t *testing.T, s *StoreMock, _ *httptest.ResponseRecorder, _ error) {
 			ff := s.CreateCalls()
 			if len(ff) != count {
@@ -266,6 +266,10 @@ func TestInit(t *testing.T) {
 			if !ff[0].S.ExpiresAt.Before(t2) {
 				t.Errorf("want before %s, got %s", t2.String(), ff[0].S.ExpiresAt.String())
 			}
+
+			if !reflect.DeepEqual(m, ff[0].S.Meta) {
+				t.Errorf("want %v, got %v", m, ff[0].S.Meta)
+			}
 		}
 	}
 
@@ -282,34 +286,64 @@ func TestInit(t *testing.T) {
 	cc := map[string]struct {
 		Store     *StoreMock
 		ExpiresIn time.Duration
+		Meta      []Meta
 		Checks    []check
 	}{
 		"Error returned by store.Create": {
 			Store:     storeStub(errors.New("error")),
 			ExpiresIn: time.Hour * 24 * 30,
+			Meta: []Meta{
+				MetaEntry("test1", "10"),
+				MetaEntry("test2", "20"),
+			},
 			Checks: checks(
 				hasErr(true),
 				hasCookie(false),
 				wasCreateCalled(1, key, time.Now().Add(time.Hour*24),
-					time.Now().Add(time.Hour*24*30+time.Second)),
+					time.Now().Add(time.Hour*24*30+time.Second),
+					map[string]string{"test1": "10", "test2": "20"},
+				),
 			),
 		},
 		"Successful temporary session init": {
 			Store: storeStub(nil),
+			Meta: []Meta{
+				MetaEntry("test1", "10"),
+				MetaEntry("test2", "20"),
+			},
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
-				wasCreateCalled(1, key, time.Time{}, time.Now().Add(time.Hour*24+time.Second)),
+				wasCreateCalled(1, key, time.Time{},
+					time.Now().Add(time.Hour*24+time.Second),
+					map[string]string{"test1": "10", "test2": "20"},
+				),
 			),
 		},
 		"Successful permanent session init": {
+			Store:     storeStub(nil),
+			ExpiresIn: time.Hour * 24 * 30,
+			Meta: []Meta{
+				MetaEntry("test1", "10"),
+				MetaEntry("test2", "20"),
+			},
+			Checks: checks(
+				hasErr(false),
+				hasCookie(true),
+				wasCreateCalled(1, key, time.Now().Add(time.Hour*24),
+					time.Now().Add(time.Hour*24*30+time.Second),
+					map[string]string{"test1": "10", "test2": "20"},
+				),
+			),
+		},
+		"Successful permanent session init with no metadata": {
 			Store:     storeStub(nil),
 			ExpiresIn: time.Hour * 24 * 30,
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
 				wasCreateCalled(1, key, time.Now().Add(time.Hour*24),
-					time.Now().Add(time.Hour*24*30+time.Second)),
+					time.Now().Add(time.Hour*24*30+time.Second), nil),
 			),
 		},
 	}
@@ -324,7 +358,7 @@ func TestInit(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest("GET", "http://example.com/", nil)
-			err := m.Init(rec, req, key)
+			err := m.Init(rec, req, key, c.Meta...)
 			for _, ch := range c.Checks {
 				ch(t, c.Store, rec, err)
 			}

@@ -46,6 +46,10 @@ type Session struct {
 		OS      string `json:"os"`
 		Browser string `json:"browser"`
 	} `json:"agent"`
+
+	// Meta specifies a map of metadata associated with
+	// the session.
+	Meta map[string]string `json:"meta,omitempty"`
 }
 
 // IsValid checks whether the incoming request's properties match
@@ -73,12 +77,13 @@ func (s Session) IsValid(r *http.Request) bool {
 
 // newSession creates a new Session with the data extracted from
 // the provided request, user key and a freshly generated ID.
-func (m *Manager) newSession(r *http.Request, key string) Session {
+func (m *Manager) newSession(r *http.Request, key string, meta map[string]string) Session {
 	s := Session{
 		CreatedAt: time.Now(),
 		ExpiresAt: prepExpiresAt(m.expiresIn),
 		ID:        m.genID(),
 		UserKey:   key,
+		Meta:      meta,
 	}
 
 	if m.withIP {
@@ -132,4 +137,14 @@ func NewContext(ctx context.Context, s Session) context.Context {
 func FromContext(ctx context.Context) (Session, bool) {
 	s, ok := ctx.Value(sessionKey).(Session)
 	return s, ok
+}
+
+// Meta is a func that handles session's metadata map.
+type Meta func(map[string]string)
+
+// MetaEntry adds a new entry into the session's metadata map.
+func MetaEntry(key, value string) Meta {
+	return func(m map[string]string) {
+		m[key] = value
+	}
 }

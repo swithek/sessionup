@@ -218,8 +218,17 @@ func (m *Manager) Clone(opts ...setter) *Manager {
 
 // Init creates a fresh session with the provided user key, inserts it in
 // the store and sets the proper values of the cookie.
-func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string) error {
-	s := m.newSession(r, key)
+func (m *Manager) Init(w http.ResponseWriter, r *http.Request, key string, mm ...Meta) error {
+	var meta map[string]string
+
+	if len(mm) > 0 {
+		meta = make(map[string]string)
+		for _, apply := range mm {
+			apply(meta)
+		}
+	}
+
+	s := m.newSession(r, key, meta)
 	exp := s.ExpiresAt
 	if s.ExpiresAt.IsZero() {
 		s.ExpiresAt = time.Now().Add(time.Hour * 24) // for temporary sessions
