@@ -119,6 +119,9 @@ func TestNewSession(t *testing.T) {
 
 	key := "key"
 	browser := "Firefox"
+	meta := map[string]string{
+		"test": "test",
+	}
 
 	cc := map[string]struct {
 		Manager Manager
@@ -168,7 +171,7 @@ func TestNewSession(t *testing.T) {
 		c := c
 		t.Run(cn, func(t *testing.T) {
 			t.Parallel()
-			s := c.Manager.newSession(c.Req, key)
+			s := c.Manager.newSession(c.Req, key, meta)
 			if s.CreatedAt.IsZero() {
 				t.Errorf("want %s, got %v", ">0", s.CreatedAt)
 			}
@@ -195,6 +198,10 @@ func TestNewSession(t *testing.T) {
 
 			if !reflect.DeepEqual(c.IP, s.IP) {
 				t.Errorf("want %v, got %v", c.IP, s.IP)
+			}
+
+			if !reflect.DeepEqual(meta, s.Meta) {
+				t.Errorf("want %v, got %v", meta, s.Meta)
 			}
 		})
 	}
@@ -252,5 +259,16 @@ func TestFromContext(t *testing.T) {
 	}
 	if !reflect.DeepEqual(s, cs) {
 		t.Errorf("want %v, got %v", s, cs)
+	}
+}
+
+func TestMetaEntry(t *testing.T) {
+	m := make(map[string]string)
+	MetaEntry("test2", "1")(m)
+	MetaEntry("test1", "2")(m)
+
+	m1 := map[string]string{"test2": "1", "test1": "2"}
+	if !reflect.DeepEqual(m1, m) {
+		t.Errorf("want %v, got %v", m1, m)
 	}
 }

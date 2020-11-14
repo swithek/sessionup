@@ -36,7 +36,7 @@ manager := sessionup.NewManager(store)
 
 Out-of-the-box sessionup's Manager instance comes with recommended [OWASP](https://github.com/OWASP/CheatSheetSeries/blob/master/cheatsheets/Session_Management_Cheat_Sheet.md#binding-the-session-id-to-other-user-properties) 
 configuration options already set, but if you feel the need to customize the behaviour and the cookie values the Manager
-will use, you can painlessly provide your own options:
+will use, you can easily provide your own options:
 ```go
 manager := sessionup.NewManager(store, sessionup.Secure(false), sessionup.ExpiresIn(time.Hour * 24))
 ```
@@ -48,6 +48,18 @@ of the session well: ID, email, username, etc.
 func login(w http.ResponseWriter, r *http.Request) {
       userID := ...
       if err := manager.Init(w, r, userID); err != nil {
+            // handle error
+      }
+      // success
+}
+```
+
+You can store additional information with your session as well.
+```go
+func login(w http.ResponseWriter, r *http.Request) {
+      userID := ...
+      err := manager.Init(w, r, userID, sessionup.MetaEntry("permission", "write"), sessionup.MetaEntry("age", "111"))
+      if err != nil {
             // handle error
       }
       // success
