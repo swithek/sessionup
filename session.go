@@ -1,7 +1,6 @@
 package sessionup
 
 import (
-	"context"
 	"net"
 	"net/http"
 	"strings"
@@ -9,6 +8,12 @@ import (
 
 	"xojoc.pw/useragent"
 )
+
+var _ SessionValidator = &Session{}
+
+type SessionValidator interface {
+	IsValid(r *http.Request) bool
+}
 
 // Session holds all the data needed to identify a session.
 type Session struct {
@@ -121,30 +126,4 @@ func readIP(r *http.Request) net.IP {
 	}
 
 	return net.ParseIP(ip)
-}
-
-type contextKey int
-
-const sessionKey contextKey = 0
-
-// NewContext creates a new context with the provided Session set as
-// a context value.
-func NewContext(ctx context.Context, s Session) context.Context {
-	return context.WithValue(ctx, sessionKey, s)
-}
-
-// FromContext extracts Session from the context.
-func FromContext(ctx context.Context) (Session, bool) {
-	s, ok := ctx.Value(sessionKey).(Session)
-	return s, ok
-}
-
-// Meta is a func that handles session's metadata map.
-type Meta func(map[string]string)
-
-// MetaEntry adds a new entry into the session's metadata map.
-func MetaEntry(key, value string) Meta {
-	return func(m map[string]string) {
-		m[key] = value
-	}
 }

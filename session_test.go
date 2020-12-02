@@ -237,10 +237,10 @@ func TestReadIP(t *testing.T) {
 }
 
 func TestNewContext(t *testing.T) {
-	s := Session{Current: true}
+	s := Sessions{{Current: true}}
 	ctx := NewContext(context.Background(), s)
 
-	cs, ok := ctx.Value(sessionKey).(Session)
+	cs, ok := ctx.Value(sessionKey).(Sessions)
 	if !ok {
 		t.Errorf("want %t, got %t", true, ok)
 	}
@@ -250,7 +250,7 @@ func TestNewContext(t *testing.T) {
 }
 
 func TestFromContext(t *testing.T) {
-	s := Session{Current: true}
+	s := Sessions{{Current: true}}
 	ctx := context.WithValue(context.Background(), sessionKey, s)
 
 	cs, ok := FromContext(ctx)
