@@ -64,10 +64,10 @@ func (m *MemStore) FetchByID(_ context.Context, id string) (sessionup.Session, b
 }
 
 // FetchByUserKey implements sessionup.Store interface's FetchByUserKey method.
-func (m *MemStore) FetchByUserKey(_ context.Context, key string) ([]sessionup.Session, error) {
+func (m *MemStore) FetchByUserKey(_ context.Context, key string) (sessionup.Sessions, error) {
 	m.dataMu.RLock()
 	ids := m.users[key]
-	var ss []sessionup.Session
+	var ss sessionup.Sessions
 	for _, id := range ids {
 		s, ok := m.sessions[id]
 		if ok && s.ExpiresAt.After(time.Now()) {

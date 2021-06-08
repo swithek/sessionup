@@ -21,24 +21,28 @@ type Store interface {
 	Create(ctx context.Context, s Session) error
 
 	// FetchByID should retrieve the session from the store by the
-	// provided ID.
-	// The second returned value indicates whether the session was found
-	// or not (true == found), error should be nil if session is not found.
+	// provided ID. If none are found, both return values should
+	//	// be nil.
 	// Error should be returned on system errors only.
-	FetchByID(ctx context.Context, id string) (Session, bool, error)
+	FetchByID(ctx context.Context, id string) (Sessions, error)
 
 	// FetchByUserKey should retrieve all sessions associated with the
 	// provided user key. If none are found, both return values should
 	// be nil.
 	// Error should be returned on system errors only.
-	FetchByUserKey(ctx context.Context, key string) ([]Session, error)
+	FetchByUserKey(ctx context.Context, key string) (Sessions, error)
 
-	// DeleteByID should delete the session from the store by the
+	// DeleteByID should delete sessions from the store by the
 	// provided ID.
-	// If session is not found, this function should be no-op and
-	// return nil.
+	// If no sessions, this function should be no-op and return nil.
 	// Error should be returned on system errors only.
 	DeleteByID(ctx context.Context, id string) error
+
+	// DeleteByIDAndUserKey should delete sessions from the store by the
+	// provided ID and UserKey
+	// If no sessions, this function should be no-op and return nil.
+	// Error should be returned on system errors only.
+	DeleteByIDAndUserKey(ctx context.Context, id, key string) error
 
 	// DeleteByUserKey should delete all sessions associated with the
 	// provided user key, except those whose IDs are provided as the

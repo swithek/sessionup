@@ -398,15 +398,15 @@ func TestPublic(t *testing.T) {
 		}
 	}
 
-	storeStub := func(bRes bool, err error) *StoreMock {
+	storeStub := func(err error) *StoreMock {
 		return &StoreMock{
-			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
+			FetchByIDFunc: func(_ context.Context, _ string) (Sessions, error) {
 				s := Session{
 					IP: net.ParseIP(ip),
 				}
 				s.Agent.OS = useragent.OSLinux
 				s.Agent.Browser = "Firefox"
-				return s, bRes, err
+				return Sessions{s}, err
 			},
 		}
 	}
@@ -421,7 +421,7 @@ func TestPublic(t *testing.T) {
 		Checks []check
 	}{
 		"Invalid cookie": {
-			Store: storeStub(true, nil),
+			Store: storeStub(nil),
 			Cookie: &http.Cookie{
 				Name:  "incorrect",
 				Value: id,
@@ -434,20 +434,7 @@ func TestPublic(t *testing.T) {
 			),
 		},
 		"Error returned by store.FetchByID": {
-			Store: storeStub(false, errors.New("error")),
-			Cookie: &http.Cookie{
-				Name:  defaultName,
-				Value: id,
-			},
-			Auth: false,
-			IP:   ip,
-			Checks: checks(
-				hasResp(http.StatusOK),
-				wasFetchByIDCalled(1, id),
-			),
-		},
-		"Session not found": {
-			Store: storeStub(false, nil),
+			Store: storeStub(errors.New("error")),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -460,7 +447,7 @@ func TestPublic(t *testing.T) {
 			),
 		},
 		"IP is invalid": {
-			Store: storeStub(true, nil),
+			Store: storeStub(nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -473,7 +460,7 @@ func TestPublic(t *testing.T) {
 			),
 		},
 		"Successful auth": {
-			Store: storeStub(true, nil),
+			Store: storeStub(nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -547,15 +534,15 @@ func TestAuth(t *testing.T) {
 		}
 	}
 
-	storeStub := func(bRes bool, err error) *StoreMock {
+	storeStub := func(err error) *StoreMock {
 		return &StoreMock{
-			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
+			FetchByIDFunc: func(_ context.Context, _ string) (Sessions, error) {
 				s := Session{
 					IP: net.ParseIP(ip),
 				}
 				s.Agent.OS = useragent.OSLinux
 				s.Agent.Browser = "Firefox"
-				return s, bRes, err
+				return Sessions{s}, err
 			},
 		}
 	}
@@ -569,7 +556,7 @@ func TestAuth(t *testing.T) {
 		Checks []check
 	}{
 		"Invalid cookie": {
-			Store: storeStub(true, nil),
+			Store: storeStub(nil),
 			Cookie: &http.Cookie{
 				Name:  "incorrect",
 				Value: id,
@@ -581,19 +568,7 @@ func TestAuth(t *testing.T) {
 			),
 		},
 		"Error returned by store.FetchByID": {
-			Store: storeStub(false, errors.New("error")),
-			Cookie: &http.Cookie{
-				Name:  defaultName,
-				Value: id,
-			},
-			IP: ip,
-			Checks: checks(
-				hasResp(http.StatusUnauthorized, true),
-				wasFetchByIDCalled(1, id),
-			),
-		},
-		"Session not found": {
-			Store: storeStub(false, nil),
+			Store: storeStub(errors.New("error")),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -605,7 +580,7 @@ func TestAuth(t *testing.T) {
 			),
 		},
 		"IP is invalid": {
-			Store: storeStub(true, nil),
+			Store: storeStub(nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -617,7 +592,7 @@ func TestAuth(t *testing.T) {
 			),
 		},
 		"Successful auth": {
-			Store: storeStub(true, nil),
+			Store: storeStub(nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -735,7 +710,7 @@ func TestRevoke(t *testing.T) {
 		},
 		"Error returned by store.DeleteByID": {
 			Store: storeStub(errors.New("error")),
-			Ctx:   NewContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), Sessions{s}),
 			Checks: checks(
 				hasErr(true),
 				hasCookie(false),
@@ -744,7 +719,7 @@ func TestRevoke(t *testing.T) {
 		},
 		"Successful revoke": {
 			Store: storeStub(nil),
-			Ctx:   NewContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), Sessions{s}),
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
@@ -882,10 +857,10 @@ func TestRevokeByIDExt(t *testing.T) {
 		}
 	}
 
-	storeStub := func(ses Session, isSes bool, err1, err2 error) *StoreMock {
+	storeStub := func(ses Session, err1, err2 error) *StoreMock {
 		return &StoreMock{
-			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
-				return ses, isSes, err1
+			FetchByIDFunc: func(_ context.Context, _ string) (Sessions, error) {
+				return Sessions{ses}, err1
 			},
 			DeleteByIDFunc: func(_ context.Context, _ string) error {
 				return err2
@@ -895,13 +870,14 @@ func TestRevokeByIDExt(t *testing.T) {
 
 	ses := Session{ID: "123", UserKey: "user123"}
 	cc := map[string]struct {
-		Store  *StoreMock
-		Ctx    context.Context
-		ID     string
-		Checks []check
+		Store   *StoreMock
+		Ctx     context.Context
+		UserKey string
+		ID      string
+		Checks  []check
 	}{
 		"No active session": {
-			Store: storeStub(ses, true, nil, nil),
+			Store: storeStub(ses, nil, nil),
 			Ctx:   context.Background(),
 			ID:    ses.ID,
 			Checks: checks(
@@ -911,8 +887,8 @@ func TestRevokeByIDExt(t *testing.T) {
 			),
 		},
 		"Error returned by store.FetchByID": {
-			Store: storeStub(Session{}, false, errors.New("error"), nil),
-			Ctx:   NewContext(context.Background(), ses),
+			Store: storeStub(Session{}, errors.New("error"), nil),
+			Ctx:   NewContext(context.Background(), Sessions{ses}),
 			ID:    ses.ID,
 			Checks: checks(
 				hasErr(true),
@@ -921,8 +897,8 @@ func TestRevokeByIDExt(t *testing.T) {
 			),
 		},
 		"Session not found": {
-			Store: storeStub(Session{}, false, nil, nil),
-			Ctx:   NewContext(context.Background(), ses),
+			Store: storeStub(Session{}, nil, nil),
+			Ctx:   NewContext(context.Background(), Sessions{ses}),
 			ID:    ses.ID,
 			Checks: checks(
 				hasErr(false),
@@ -935,8 +911,8 @@ func TestRevokeByIDExt(t *testing.T) {
 				tmp := ses
 				tmp.UserKey = "user222"
 				return tmp
-			}(), true, nil, nil),
-			Ctx: NewContext(context.Background(), ses),
+			}(), nil, nil),
+			Ctx: NewContext(context.Background(), Sessions{ses}),
 			ID:  ses.ID,
 			Checks: checks(
 				hasErr(true),
@@ -945,8 +921,8 @@ func TestRevokeByIDExt(t *testing.T) {
 			),
 		},
 		"Error returned by store.DeleteByID": {
-			Store: storeStub(ses, true, nil, errors.New("error")),
-			Ctx:   NewContext(context.Background(), ses),
+			Store: storeStub(ses, nil, errors.New("error")),
+			Ctx:   NewContext(context.Background(), Sessions{ses}),
 			ID:    ses.ID,
 			Checks: checks(
 				hasErr(true),
@@ -955,8 +931,8 @@ func TestRevokeByIDExt(t *testing.T) {
 			),
 		},
 		"Successful revoke": {
-			Store: storeStub(ses, true, nil, nil),
-			Ctx:   NewContext(context.Background(), ses),
+			Store: storeStub(ses, nil, nil),
+			Ctx:   NewContext(context.Background(), Sessions{ses}),
 			ID:    ses.ID,
 			Checks: checks(
 				hasErr(false),
@@ -971,7 +947,7 @@ func TestRevokeByIDExt(t *testing.T) {
 		t.Run(cn, func(t *testing.T) {
 			t.Parallel()
 			m := Manager{store: c.Store}
-			err := m.RevokeByIDExt(c.Ctx, c.ID)
+			err := m.RevokeByIDExt(c.Ctx, c.UserKey, c.ID)
 			for _, ch := range c.Checks {
 				ch(t, c.Store, err)
 			}
@@ -1028,9 +1004,10 @@ func TestRevokeOther(t *testing.T) {
 	s := Session{ID: "id", UserKey: "key"}
 
 	cc := map[string]struct {
-		Store  *StoreMock
-		Ctx    context.Context
-		Checks []check
+		Store   *StoreMock
+		Ctx     context.Context
+		UserKey string
+		Checks  []check
 	}{
 		"No session in the context": {
 			Store: storeStub(nil),
@@ -1042,7 +1019,7 @@ func TestRevokeOther(t *testing.T) {
 		},
 		"Error returned by store.DeleteByUserKey": {
 			Store: storeStub(errors.New("error")),
-			Ctx:   NewContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), Sessions{s}),
 			Checks: checks(
 				hasErr(true),
 				wasDeleteByUserKeyCalled(1, s.UserKey, s.ID),
@@ -1050,7 +1027,7 @@ func TestRevokeOther(t *testing.T) {
 		},
 		"Successful revoke": {
 			Store: storeStub(nil),
-			Ctx:   NewContext(context.Background(), s),
+			Ctx:   NewContext(context.Background(), Sessions{s}),
 			Checks: checks(
 				hasErr(false),
 				wasDeleteByUserKeyCalled(1, s.UserKey, s.ID),
@@ -1064,7 +1041,7 @@ func TestRevokeOther(t *testing.T) {
 			t.Parallel()
 			m := Manager{store: c.Store}
 			m.Defaults()
-			err := m.RevokeOther(c.Ctx)
+			err := m.RevokeOther(c.Ctx, c.UserKey)
 			for _, ch := range c.Checks {
 				ch(t, c.Store, err)
 			}
@@ -1134,22 +1111,15 @@ func TestRevokeAll(t *testing.T) {
 	s := Session{ID: "id", UserKey: "key"}
 
 	cc := map[string]struct {
-		Store  *StoreMock
-		Ctx    context.Context
-		Checks []check
+		Store   *StoreMock
+		Ctx     context.Context
+		UserKey string
+		Checks  []check
 	}{
-		"No session in the context": {
-			Store: storeStub(nil),
-			Ctx:   context.Background(),
-			Checks: checks(
-				hasErr(false),
-				hasCookie(false),
-				wasDeleteByUserKeyCalled(0, ""),
-			),
-		},
 		"Error returned by store.DeleteByUserKey": {
-			Store: storeStub(errors.New("error")),
-			Ctx:   NewContext(context.Background(), s),
+			Store:   storeStub(errors.New("error")),
+			Ctx:     NewContext(context.Background(), Sessions{s}),
+			UserKey: "key",
 			Checks: checks(
 				hasErr(true),
 				hasCookie(false),
@@ -1157,8 +1127,9 @@ func TestRevokeAll(t *testing.T) {
 			),
 		},
 		"Successful revoke": {
-			Store: storeStub(nil),
-			Ctx:   NewContext(context.Background(), s),
+			Store:   storeStub(nil),
+			Ctx:     NewContext(context.Background(), Sessions{s}),
+			UserKey: "key",
 			Checks: checks(
 				hasErr(false),
 				hasCookie(true),
@@ -1174,7 +1145,7 @@ func TestRevokeAll(t *testing.T) {
 			m := Manager{store: c.Store}
 			m.Defaults()
 			rec := httptest.NewRecorder()
-			err := m.RevokeAll(c.Ctx, rec)
+			err := m.RevokeAll(c.Ctx, c.UserKey, rec)
 			for _, ch := range c.Checks {
 				ch(t, c.Store, rec, err)
 			}
@@ -1256,12 +1227,12 @@ func TestRevokeByUserKey(t *testing.T) {
 }
 
 func TestFetchAll(t *testing.T) {
-	type check func(*testing.T, *StoreMock, []Session, error)
+	type check func(*testing.T, *StoreMock, Sessions, error)
 
 	checks := func(cc ...check) []check { return cc }
 
 	hasErr := func(e bool) check {
-		return func(t *testing.T, _ *StoreMock, _ []Session, err error) {
+		return func(t *testing.T, _ *StoreMock, _ Sessions, err error) {
 			if e && err == nil {
 				t.Error("want non-nil, got nil")
 			} else if !e && err != nil {
@@ -1270,8 +1241,8 @@ func TestFetchAll(t *testing.T) {
 		}
 	}
 
-	hasSessions := func(exp []Session, c bool) check {
-		return func(t *testing.T, _ *StoreMock, ss []Session, _ error) {
+	hasSessions := func(exp Sessions, c bool) check {
+		return func(t *testing.T, _ *StoreMock, ss Sessions, _ error) {
 			if exp != nil && c {
 				s := exp[1]
 				s.Current = true
@@ -1285,7 +1256,7 @@ func TestFetchAll(t *testing.T) {
 	}
 
 	wasFetchByUserKeyCalled := func(count int, key string) check {
-		return func(t *testing.T, s *StoreMock, _ []Session, _ error) {
+		return func(t *testing.T, s *StoreMock, _ Sessions, _ error) {
 			ff := s.FetchByUserKeyCalls()
 			if len(ff) != count {
 				t.Errorf("want %d, got %d", count, len(ff))
@@ -1301,16 +1272,16 @@ func TestFetchAll(t *testing.T) {
 		}
 	}
 
-	storeStub := func(res []Session, err error) *StoreMock {
+	storeStub := func(res Sessions, err error) *StoreMock {
 		return &StoreMock{
-			FetchByUserKeyFunc: func(_ context.Context, _ string) ([]Session, error) {
+			FetchByUserKeyFunc: func(_ context.Context, _ string) (Sessions, error) {
 				return res, err
 			},
 		}
 	}
 
-	ss := func() []Session {
-		var res []Session
+	ss := func() Sessions {
+		var res Sessions
 		for i := 0; i < 3; i++ {
 			res = append(res, Session{
 				ID: fmt.Sprintf("id%d", i),
@@ -1321,9 +1292,10 @@ func TestFetchAll(t *testing.T) {
 	curr := ss()[1]
 
 	cc := map[string]struct {
-		Store  *StoreMock
-		Ctx    context.Context
-		Checks []check
+		Store   *StoreMock
+		Ctx     context.Context
+		UserKey string
+		Checks  []check
 	}{
 		"No session in the context": {
 			Store: storeStub(ss(), nil),
@@ -1336,7 +1308,7 @@ func TestFetchAll(t *testing.T) {
 		},
 		"Error returned by store.FetchByUserKey": {
 			Store: storeStub(nil, errors.New("error")),
-			Ctx:   NewContext(context.Background(), curr),
+			Ctx:   NewContext(context.Background(), Sessions{curr}),
 			Checks: checks(
 				hasErr(true),
 				hasSessions(nil, false),
@@ -1345,7 +1317,7 @@ func TestFetchAll(t *testing.T) {
 		},
 		"No sessions found": {
 			Store: storeStub(nil, nil),
-			Ctx:   NewContext(context.Background(), curr),
+			Ctx:   NewContext(context.Background(), Sessions{curr}),
 			Checks: checks(
 				hasErr(false),
 				hasSessions(nil, false),
@@ -1354,7 +1326,7 @@ func TestFetchAll(t *testing.T) {
 		},
 		"Successful fetch": {
 			Store: storeStub(ss(), nil),
-			Ctx:   NewContext(context.Background(), curr),
+			Ctx:   NewContext(context.Background(), Sessions{curr}),
 			Checks: checks(
 				hasErr(false),
 				hasSessions(ss(), true),
@@ -1368,7 +1340,7 @@ func TestFetchAll(t *testing.T) {
 		t.Run(cn, func(t *testing.T) {
 			t.Parallel()
 			m := Manager{store: c.Store}
-			ss, err := m.FetchAll(c.Ctx)
+			ss, err := m.FetchAll(c.Ctx, c.UserKey)
 			for _, ch := range c.Checks {
 				ch(t, c.Store, ss, err)
 			}
