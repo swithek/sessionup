@@ -64,12 +64,12 @@ func (s Session) IsValid(r *http.Request) bool {
 
 	os := true
 	if s.Agent.OS != "" {
-		os = s.Agent.OS == a.OS
+		os = a != nil && s.Agent.OS == a.OS
 	}
 
 	browser := true
 	if s.Agent.Browser != "" {
-		browser = s.Agent.Browser == a.Name
+		browser = a != nil && s.Agent.Browser == a.Name
 	}
 
 	return ip && os && browser
