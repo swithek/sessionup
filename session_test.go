@@ -39,6 +39,15 @@ func TestIsValid(t *testing.T) {
 			Session: ses,
 			Res:     false,
 		},
+		"Empty User-Agent": {
+			Req: func() *http.Request {
+				creq := httptest.NewRequest("GET", "http://example.com/", nil)
+				creq.RemoteAddr = req.RemoteAddr
+				return creq
+			}(),
+			Session: ses,
+			Res:     false,
+		},
 		"Invalid User-Agent browser": {
 			Req: func() *http.Request {
 				creq := httptest.NewRequest("GET", "http://example.com/", nil)
