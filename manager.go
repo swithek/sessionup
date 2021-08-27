@@ -46,12 +46,12 @@ type Manager struct {
 	reject func(error) http.Handler
 }
 
-// setter is used to set Manager configuration options.
-type setter func(*Manager)
+// Option is used to set Manager configuration options.
+type Option func(*Manager)
 
 // CookieName sets the name of the cookie.
 // Defaults to the value stored in defaultName.
-func CookieName(n string) setter {
+func CookieName(n string) Option {
 	return func(m *Manager) {
 		m.cookie.name = n
 	}
@@ -60,7 +60,7 @@ func CookieName(n string) setter {
 // Domain sets the 'Domain' attribute on the session cookie.
 // Defaults to empty string.
 // More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Scope_of_cookies
-func Domain(d string) setter {
+func Domain(d string) Option {
 	return func(m *Manager) {
 		m.cookie.domain = d
 	}
@@ -69,7 +69,7 @@ func Domain(d string) setter {
 // Path sets the 'Path' attribute on the session cookie.
 // Defaults to "/".
 // More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Scope_of_cookies
-func Path(p string) setter {
+func Path(p string) Option {
 	return func(m *Manager) {
 		m.cookie.path = p
 	}
@@ -78,7 +78,7 @@ func Path(p string) setter {
 // Secure sets the 'Secure' attribute on the session cookie.
 // Defaults to true.
 // More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Secure_and_HttpOnly_cookies
-func Secure(s bool) setter {
+func Secure(s bool) Option {
 	return func(m *Manager) {
 		m.cookie.secure = s
 	}
@@ -87,7 +87,7 @@ func Secure(s bool) setter {
 // HttpOnly sets the 'HttpOnly' attribute on the session cookie.
 // Defaults to true.
 // More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Secure_and_HttpOnly_cookies
-func HttpOnly(h bool) setter {
+func HttpOnly(h bool) Option {
 	return func(m *Manager) {
 		m.cookie.httpOnly = h
 	}
@@ -96,7 +96,7 @@ func HttpOnly(h bool) setter {
 // SameSite sets the 'SameSite' attribute on the session cookie.
 // Defaults to http.SameSiteStrictMode.
 // More at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#SameSite_cookies
-func SameSite(s http.SameSite) setter {
+func SameSite(s http.SameSite) Option {
 	return func(m *Manager) {
 		m.cookie.sameSite = s
 	}
@@ -107,7 +107,7 @@ func SameSite(s http.SameSite) setter {
 // If unset, 'Expires' attribute will be omitted during cookie creation.
 // By default it is not set.
 // More about Expires at: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Session_cookies
-func ExpiresIn(e time.Duration) setter {
+func ExpiresIn(e time.Duration) Option {
 	return func(m *Manager) {
 		m.expiresIn = e
 	}
@@ -116,7 +116,7 @@ func ExpiresIn(e time.Duration) setter {
 // WithIP determines whether IP should be extracted
 // from the request or not.
 // Defaults to true.
-func WithIP(w bool) setter {
+func WithIP(w bool) Option {
 	return func(m *Manager) {
 		m.withIP = w
 	}
@@ -125,7 +125,7 @@ func WithIP(w bool) setter {
 // WithAgent determines whether User-Agent data should
 // be extracted from the request or not.
 // Defaults to true.
-func WithAgent(w bool) setter {
+func WithAgent(w bool) Option {
 	return func(m *Manager) {
 		m.withAgent = w
 	}
@@ -134,7 +134,7 @@ func WithAgent(w bool) setter {
 // Validate determines whether IP and User-Agent data
 // should be checked on each request to authenticated
 // routes or not.
-func Validate(v bool) setter {
+func Validate(v bool) Option {
 	return func(m *Manager) {
 		m.validate = v
 	}
@@ -143,7 +143,7 @@ func Validate(v bool) setter {
 // GenID sets the function which will be called when a new session
 // is created and ID is being generated.
 // Defaults to DefaultGenID function.
-func GenID(g func() string) setter {
+func GenID(g func() string) Option {
 	return func(m *Manager) {
 		m.genID = g
 	}
@@ -152,7 +152,7 @@ func GenID(g func() string) setter {
 // Reject sets the function which will be called on error in Auth
 // middleware.
 // Defaults to DefaultReject function.
-func Reject(r func(error) http.Handler) setter {
+func Reject(r func(error) http.Handler) Option {
 	return func(m *Manager) {
 		m.reject = r
 	}
@@ -160,7 +160,7 @@ func Reject(r func(error) http.Handler) setter {
 
 // NewManager creates a new Manager with the provided store
 // and options applied to it.
-func NewManager(s Store, opts ...setter) *Manager {
+func NewManager(s Store, opts ...Option) *Manager {
 	m := &Manager{store: s}
 	m.Defaults()
 
@@ -206,7 +206,7 @@ func DefaultReject(err error) http.Handler {
 
 // Clone copies the manager to its fresh copy and applies provided
 // options.
-func (m *Manager) Clone(opts ...setter) *Manager {
+func (m *Manager) Clone(opts ...Option) *Manager {
 	cm := &Manager{}
 	*cm = *m
 	for _, o := range opts {
