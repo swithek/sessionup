@@ -402,7 +402,8 @@ func TestPublic(t *testing.T) {
 		return &StoreMock{
 			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
 				s := Session{
-					IP: net.ParseIP(ip),
+					ExpiresAt: time.Now().Add(time.Minute),
+					IP:        net.ParseIP(ip),
 				}
 				s.Agent.OS = useragent.OSLinux
 				s.Agent.Browser = "Firefox"
@@ -551,7 +552,8 @@ func TestAuth(t *testing.T) {
 		return &StoreMock{
 			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
 				s := Session{
-					IP: net.ParseIP(ip),
+					ExpiresAt: time.Now().Add(time.Minute),
+					IP:        net.ParseIP(ip),
 				}
 				s.Agent.OS = useragent.OSLinux
 				s.Agent.Browser = "Firefox"

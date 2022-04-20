@@ -14,7 +14,8 @@ import (
 
 func TestIsValid(t *testing.T) {
 	ses := Session{
-		IP: net.ParseIP("127.0.0.1"),
+		ExpiresAt: time.Now().Add(time.Minute),
+		IP:        net.ParseIP("127.0.0.1"),
 	}
 
 	ses.Agent.OS = useragent.OSWindows
@@ -67,6 +68,15 @@ func TestIsValid(t *testing.T) {
 			}(),
 			Session: ses,
 			Res:     false,
+		},
+		"Invalid expiration time": {
+			Req: req,
+			Session: func() Session {
+				cses := ses
+				cses.ExpiresAt = time.Now().Add(-1 * time.Minute)
+				return cses
+			}(),
+			Res: false,
 		},
 		"Successful all fields except ip validation": {
 			Req: req,
