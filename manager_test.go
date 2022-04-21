@@ -398,15 +398,21 @@ func TestPublic(t *testing.T) {
 		}
 	}
 
-	storeStub := func(bRes bool, err error) *StoreMock {
+	storeStub := func(found, expired bool, err error) *StoreMock {
 		return &StoreMock{
 			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
+				expiresAt := time.Now().Add(time.Minute)
+				if expired {
+					expiresAt = expiresAt.Add(-5 * time.Minute)
+				}
+
 				s := Session{
-					IP: net.ParseIP(ip),
+					ExpiresAt: expiresAt,
+					IP:        net.ParseIP(ip),
 				}
 				s.Agent.OS = useragent.OSLinux
 				s.Agent.Browser = "Firefox"
-				return s, bRes, err
+				return s, found, err
 			},
 		}
 	}
@@ -421,7 +427,7 @@ func TestPublic(t *testing.T) {
 		Checks []check
 	}{
 		"Invalid cookie": {
-			Store: storeStub(true, nil),
+			Store: storeStub(true, false, nil),
 			Cookie: &http.Cookie{
 				Name:  "incorrect",
 				Value: id,
@@ -434,7 +440,7 @@ func TestPublic(t *testing.T) {
 			),
 		},
 		"Error returned by store.FetchByID": {
-			Store: storeStub(false, errors.New("error")),
+			Store: storeStub(false, false, errors.New("error")),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -447,7 +453,20 @@ func TestPublic(t *testing.T) {
 			),
 		},
 		"Session not found": {
-			Store: storeStub(false, nil),
+			Store: storeStub(false, false, nil),
+			Cookie: &http.Cookie{
+				Name:  defaultName,
+				Value: id,
+			},
+			Auth: false,
+			IP:   ip,
+			Checks: checks(
+				hasResp(http.StatusOK),
+				wasFetchByIDCalled(1, id),
+			),
+		},
+		"Expired session": {
+			Store: storeStub(true, true, nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -460,7 +479,7 @@ func TestPublic(t *testing.T) {
 			),
 		},
 		"IP is invalid": {
-			Store: storeStub(true, nil),
+			Store: storeStub(true, false, nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -473,7 +492,7 @@ func TestPublic(t *testing.T) {
 			),
 		},
 		"Successful auth": {
-			Store: storeStub(true, nil),
+			Store: storeStub(true, false, nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -547,15 +566,21 @@ func TestAuth(t *testing.T) {
 		}
 	}
 
-	storeStub := func(bRes bool, err error) *StoreMock {
+	storeStub := func(found, expired bool, err error) *StoreMock {
 		return &StoreMock{
 			FetchByIDFunc: func(_ context.Context, _ string) (Session, bool, error) {
+				expiresAt := time.Now().Add(time.Minute)
+				if expired {
+					expiresAt = expiresAt.Add(-5 * time.Minute)
+				}
+
 				s := Session{
-					IP: net.ParseIP(ip),
+					ExpiresAt: expiresAt,
+					IP:        net.ParseIP(ip),
 				}
 				s.Agent.OS = useragent.OSLinux
 				s.Agent.Browser = "Firefox"
-				return s, bRes, err
+				return s, found, err
 			},
 		}
 	}
@@ -569,7 +594,7 @@ func TestAuth(t *testing.T) {
 		Checks []check
 	}{
 		"Invalid cookie": {
-			Store: storeStub(true, nil),
+			Store: storeStub(true, false, nil),
 			Cookie: &http.Cookie{
 				Name:  "incorrect",
 				Value: id,
@@ -581,7 +606,7 @@ func TestAuth(t *testing.T) {
 			),
 		},
 		"Error returned by store.FetchByID": {
-			Store: storeStub(false, errors.New("error")),
+			Store: storeStub(false, false, errors.New("error")),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -593,7 +618,19 @@ func TestAuth(t *testing.T) {
 			),
 		},
 		"Session not found": {
-			Store: storeStub(false, nil),
+			Store: storeStub(false, false, nil),
+			Cookie: &http.Cookie{
+				Name:  defaultName,
+				Value: id,
+			},
+			IP: ip,
+			Checks: checks(
+				hasResp(http.StatusUnauthorized, true),
+				wasFetchByIDCalled(1, id),
+			),
+		},
+		"Expired session": {
+			Store: storeStub(true, true, nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -605,7 +642,7 @@ func TestAuth(t *testing.T) {
 			),
 		},
 		"IP is invalid": {
-			Store: storeStub(true, nil),
+			Store: storeStub(true, false, nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,
@@ -617,7 +654,7 @@ func TestAuth(t *testing.T) {
 			),
 		},
 		"Successful auth": {
-			Store: storeStub(true, nil),
+			Store: storeStub(true, false, nil),
 			Cookie: &http.Cookie{
 				Name:  defaultName,
 				Value: id,

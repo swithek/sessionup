@@ -25,12 +25,14 @@ type Store interface {
 	// The second returned value indicates whether the session was found
 	// or not (true == found), error should be nil if session is not found.
 	// Error should be returned on system errors only.
+	// If the session is expired, it should be treated as not found.
 	FetchByID(ctx context.Context, id string) (Session, bool, error)
 
 	// FetchByUserKey should retrieve all sessions associated with the
 	// provided user key. If none are found, both return values should
 	// be nil.
 	// Error should be returned on system errors only.
+	// Only non-expired sessions should be returned.
 	FetchByUserKey(ctx context.Context, key string) ([]Session, error)
 
 	// DeleteByID should delete the session from the store by the
