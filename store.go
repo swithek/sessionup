@@ -32,7 +32,7 @@ type Store interface {
 	// provided user key. If none are found, both return values should
 	// be nil.
 	// Error should be returned on system errors only.
-	// Only should retrieve the sessions that are not expired.
+	// Only non-expired sessions should be returned.
 	FetchByUserKey(ctx context.Context, key string) ([]Session, error)
 
 	// DeleteByID should delete the session from the store by the

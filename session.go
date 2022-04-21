@@ -53,7 +53,7 @@ type Session struct {
 }
 
 // IsValid checks whether the incoming request's properties match
-// active session's properties and validates the session's expiration time.
+// active session's properties or not.
 func (s Session) IsValid(r *http.Request) bool {
 	ip := true
 	if len(s.IP) != 0 {
@@ -72,7 +72,7 @@ func (s Session) IsValid(r *http.Request) bool {
 		browser = a != nil && s.Agent.Browser == a.Name
 	}
 
-	return ip && os && browser && s.ExpiresAt.After(time.Now())
+	return ip && os && browser
 }
 
 // newSession creates a new Session with the data extracted from

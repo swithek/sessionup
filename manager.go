@@ -285,7 +285,7 @@ func (m *Manager) wrap(rej func(error) http.Handler, next http.Handler) http.Han
 			return
 		}
 
-		if !ok {
+		if !ok || s.ExpiresAt.Before(time.Now()) {
 			rej(ErrUnauthorized).ServeHTTP(w, r)
 			return
 		}
